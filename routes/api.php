@@ -21,6 +21,8 @@ Route::prefix($path)
     ->group(function () {
         // MCP Protocol endpoints
         Route::post('/', [McpController::class, 'handle']);
+        Route::get('/manifest.json', [McpController::class, 'manifest']);
+        Route::post('/manifest.json', [McpController::class, 'handle']);
         Route::get('/tools', [McpController::class, 'listTools']);
         
         // Overview endpoints

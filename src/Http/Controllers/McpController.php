@@ -24,6 +24,26 @@ class McpController extends Controller
     }
     
     /**
+     * Get the server manifest.
+     */
+    public function manifest(Request $request): JsonResponse
+    {
+        // Handle GET requests for manifest
+        if ($request->method() === 'GET') {
+            $initData = $this->initialize([]);
+
+            return response()->json([
+                'jsonrpc' => '2.0',
+                'result' => $initData,
+                'id' => null,
+            ]);
+        }
+
+        // For POST requests, treat as JSON-RPC call
+        return $this->handle($request);
+    }
+
+    /**
      * Handle MCP JSON-RPC request.
      */
     public function handle(Request $request): JsonResponse

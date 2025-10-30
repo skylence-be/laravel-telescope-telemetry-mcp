@@ -5,17 +5,49 @@ namespace LaravelTelescope\Telemetry\Services;
 class PerformanceAnalyzer
 {
     protected array $config;
-    
+
     public function __construct(array $config)
     {
         $this->config = $config;
     }
-    
+
+    /**
+     * Normalize entry to array format.
+     */
+    protected function normalizeEntry($entry): array
+    {
+        if (is_array($entry)) {
+            return $entry;
+        }
+
+        // Handle EntryResult objects from Telescope
+        if (is_object($entry)) {
+            $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
+            $id = isset($entry->id) ? $entry->id : null;
+
+            return [
+                'id' => $id,
+                'content' => $content,
+            ];
+        }
+
+        return ['id' => null, 'content' => []];
+    }
+
+    /**
+     * Normalize entries array.
+     */
+    protected function normalizeEntries(array $entries): array
+    {
+        return array_map(fn($e) => $this->normalizeEntry($e), $entries);
+    }
+
     /**
      * Analyze performance of requests.
      */
     public function analyzeRequests(array $requests): array
     {
+        $requests = $this->normalizeEntries($requests);
         if (empty($requests)) {
             return $this->emptyAnalysis();
         }
@@ -38,6 +70,7 @@ class PerformanceAnalyzer
      */
     public function analyzeQueries(array $queries): array
     {
+        $queries = $this->normalizeEntries($queries);
         if (empty($queries)) {
             return $this->emptyAnalysis();
         }
@@ -57,13 +90,15 @@ class PerformanceAnalyzer
      */
     public function identifyBottlenecks(array $requests, array $queries): array
     {
+        $requests = $this->normalizeEntries($requests);
+        $queries = $this->normalizeEntries($queries);
         $bottlenecks = [];
         
         // Database bottlenecks
         $dbTime = $this->calculateDatabaseTime($queries);
         $requestTime = $this->calculateTotalRequestTime($requests);
-        
-        if ($dbTime > $requestTime * 0.5) {
+
+        if ($requestTime > 0 && $dbTime > $requestTime * 0.5) {
             $bottlenecks[] = [
                 'type' => 'database',
                 'severity' => 'high',
@@ -123,9 +158,9 @@ class PerformanceAnalyzer
         
         $currentAvg = $this->calculateAverageDuration($currentData);
         $historicalAvg = $this->calculateAverageDuration($historicalData);
-        
-        $change = (($currentAvg - $historicalAvg) / $historicalAvg) * 100;
-        
+
+        $change = $historicalAvg > 0 ? (($currentAvg - $historicalAvg) / $historicalAvg) * 100 : 0;
+
         $trends['change_percentage'] = round($change, 2);
         $trends['direction'] = $change > 10 ? 'degrading' : ($change < -10 ? 'improving' : 'stable');
         
@@ -155,10 +190,14 @@ class PerformanceAnalyzer
         $durations = array_map(fn($item) => $item['content']['duration'] ?? 0, $data);
         $mean = array_sum($durations) / count($durations);
         $stdDev = $this->calculateStdDev($durations, $mean);
-        
+
+        if ($stdDev == 0) {
+            return [];
+        }
+
         $anomalies = [];
         $threshold = $mean + (2 * $stdDev); // 2 standard deviations
-        
+
         foreach ($data as $item) {
             $duration = $item['content']['duration'] ?? 0;
             if ($duration > $threshold) {
@@ -269,7 +308,7 @@ class PerformanceAnalyzer
         }
         
         foreach ($endpoints as $endpoint => &$stats) {
-            $stats['avg_duration'] = $stats['total_duration'] / $stats['count'];
+            $stats['avg_duration'] = $stats['count'] > 0 ? $stats['total_duration'] / $stats['count'] : 0;
             $stats['p95'] = $this->percentile($stats['durations'], 95);
             unset($stats['durations']); // Remove raw data to save tokens
         }

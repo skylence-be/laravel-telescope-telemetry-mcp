@@ -7,6 +7,7 @@ use LaravelTelescope\Telemetry\Services\PaginationManager;
 use LaravelTelescope\Telemetry\Services\ResponseFormatter;
 use LaravelTelescope\Telemetry\Services\CacheManager;
 use Laravel\Telescope\Contracts\EntriesRepository;
+use Laravel\Telescope\Storage\EntryQueryOptions;
 use Illuminate\Support\Facades\App;
 
 abstract class AbstractTool implements ToolInterface
@@ -60,8 +61,8 @@ abstract class AbstractTool implements ToolInterface
         $cacheKey = $this->getCacheKey('summary', $arguments);
         
         return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->getEntries($arguments);
-            
+            $entries = $this->normalizeEntries($this->getEntries($arguments));
+
             return $this->formatter->formatSummary([
                 'total' => count($entries),
                 'type' => $this->entryType,
@@ -82,14 +83,14 @@ abstract class AbstractTool implements ToolInterface
         $cacheKey = $this->getCacheKey('list', $arguments);
         
         return $this->cache->remember($cacheKey, function () use ($limit, $offset, $arguments) {
-            $entries = $this->getEntries($arguments);
+            $entries = $this->normalizeEntries($this->getEntries($arguments));
             $paginatedEntries = array_slice($entries, $offset, $limit);
-            
+
             $formatted = $this->formatter->formatList(
                 $paginatedEntries,
                 $this->getListFields()
             );
-            
+
             return $this->pagination->paginate(
                 $formatted,
                 count($entries),
@@ -128,8 +129,8 @@ abstract class AbstractTool implements ToolInterface
         $cacheKey = $this->getCacheKey('stats', $arguments);
         
         return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->getEntries($arguments);
-            
+            $entries = $this->normalizeEntries($this->getEntries($arguments));
+
             return $this->formatter->formatStats(
                 $this->calculateStats($entries)
             );
@@ -160,27 +161,25 @@ abstract class AbstractTool implements ToolInterface
      */
     protected function getEntries(array $arguments = []): array
     {
-        $options = [
-            'type' => $this->entryType,
-            'limit' => $arguments['limit'] ?? 100,
-        ];
-        
+        $queryOptions = (new EntryQueryOptions())
+            ->limit($arguments['limit'] ?? 100);
+
         if (isset($arguments['tag'])) {
-            $options['tag'] = $arguments['tag'];
+            $queryOptions->tag($arguments['tag']);
         }
-        
+
         if (isset($arguments['family_hash'])) {
-            $options['familyHash'] = $arguments['family_hash'];
+            $queryOptions->familyHash($arguments['family_hash']);
         }
-        
+
         if (isset($arguments['before'])) {
-            $options['beforeSequence'] = $arguments['before'];
+            $queryOptions->beforeSequence($arguments['before']);
         }
-        
-        return $this->storage->get(
-            $options['type'],
-            $options
-        )->toArray();
+
+        return iterator_to_array($this->storage->get(
+            $this->entryType,
+            $queryOptions
+        ));
     }
     
     /**
@@ -281,9 +280,42 @@ abstract class AbstractTool implements ToolInterface
      * Get fields to include in list view.
      */
     abstract protected function getListFields(): array;
-    
+
     /**
      * Get searchable fields.
      */
     abstract protected function getSearchableFields(): array;
+
+    /**
+     * Normalize entry to array format.
+     */
+    protected function normalizeEntry($entry): array
+    {
+        if (is_array($entry)) {
+            return $entry;
+        }
+
+        // Handle EntryResult objects from Telescope
+        if (is_object($entry)) {
+            $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
+            $id = isset($entry->id) ? $entry->id : null;
+            $createdAt = isset($entry->created_at) ? $entry->created_at : null;
+
+            return [
+                'id' => $id,
+                'content' => $content,
+                'created_at' => $createdAt,
+            ];
+        }
+
+        return ['id' => null, 'content' => [], 'created_at' => null];
+    }
+
+    /**
+     * Normalize entries array.
+     */
+    protected function normalizeEntries(array $entries): array
+    {
+        return array_map(fn($e) => $this->normalizeEntry($e), $entries);
+    }
 }

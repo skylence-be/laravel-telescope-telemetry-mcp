@@ -5,10 +5,41 @@ namespace LaravelTelescope\Telemetry\Services;
 class QueryAnalyzer
 {
     protected array $config;
-    
+
     public function __construct(array $config)
     {
         $this->config = $config;
+    }
+
+    /**
+     * Normalize query to array format.
+     */
+    protected function normalizeQuery($query): array
+    {
+        if (is_array($query)) {
+            return $query;
+        }
+
+        // Handle EntryResult objects from Telescope
+        if (is_object($query)) {
+            $content = isset($query->content) && is_array($query->content) ? $query->content : [];
+            $id = isset($query->id) ? $query->id : null;
+
+            return [
+                'id' => $id,
+                'content' => $content,
+            ];
+        }
+
+        return ['id' => null, 'content' => []];
+    }
+
+    /**
+     * Normalize queries array.
+     */
+    protected function normalizeQueries(array $queries): array
+    {
+        return array_map(fn($q) => $this->normalizeQuery($q), $queries);
     }
     
     /**
@@ -16,6 +47,7 @@ class QueryAnalyzer
      */
     public function detectNPlusOne(array $queries): array
     {
+        $queries = $this->normalizeQueries($queries);
         $patterns = $this->groupByPattern($queries);
         $threshold = $this->config['n_plus_one_threshold'] ?? 3;
         
@@ -42,6 +74,7 @@ class QueryAnalyzer
      */
     public function findDuplicates(array $queries): array
     {
+        $queries = $this->normalizeQueries($queries);
         $duplicates = [];
         $seen = [];
         
@@ -90,6 +123,7 @@ class QueryAnalyzer
      */
     public function identifySlowQueries(array $queries): array
     {
+        $queries = $this->normalizeQueries($queries);
         $threshold = $this->config['slow_query_ms'] ?? 100;
         
         $slowQueries = array_filter($queries, function ($query) use ($threshold) {
@@ -190,6 +224,7 @@ class QueryAnalyzer
      */
     public function calculateStats(array $queries): array
     {
+        $queries = $this->normalizeQueries($queries);
         if (empty($queries)) {
             return $this->emptyStats();
         }

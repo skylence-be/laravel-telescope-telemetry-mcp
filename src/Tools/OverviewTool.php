@@ -3,6 +3,7 @@
 namespace LaravelTelescope\Telemetry\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
+use Laravel\Telescope\Storage\EntryQueryOptions;
 use LaravelTelescope\Telemetry\Services\PerformanceAnalyzer;
 use LaravelTelescope\Telemetry\Services\QueryAnalyzer;
 
@@ -62,11 +63,11 @@ class OverviewTool extends AbstractTool
             $includeRecommendations = $arguments['include_recommendations'] ?? true;
             
             // Gather data from different entry types
-            $requests = $this->storage->get('request', ['limit' => 100])->toArray();
-            $queries = $this->storage->get('query', ['limit' => 100])->toArray();
-            $exceptions = $this->storage->get('exception', ['limit' => 50])->toArray();
-            $jobs = $this->storage->get('job', ['limit' => 50])->toArray();
-            $cache = $this->storage->get('cache', ['limit' => 50])->toArray();
+            $requests = $this->normalizeEntries(iterator_to_array($this->storage->get('request', (new EntryQueryOptions())->limit(100))));
+            $queries = $this->normalizeEntries(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
+            $exceptions = $this->normalizeEntries(iterator_to_array($this->storage->get('exception', (new EntryQueryOptions())->limit(50))));
+            $jobs = $this->normalizeEntries(iterator_to_array($this->storage->get('job', (new EntryQueryOptions())->limit(50))));
+            $cache = $this->normalizeEntries(iterator_to_array($this->storage->get('cache', (new EntryQueryOptions())->limit(50))));
             
             // Analyze performance
             $requestAnalysis = $this->performanceAnalyzer->analyzeRequests($requests);
@@ -185,7 +186,7 @@ class OverviewTool extends AbstractTool
         }
         
         // Check for N+1 queries
-        $nPlusOne = $this->queryAnalyzer->detectNPlusOne($this->storage->get('query', ['limit' => 100])->toArray());
+        $nPlusOne = $this->queryAnalyzer->detectNPlusOne(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
         if (!empty($nPlusOne)) {
             $issues[] = [
                 'type' => 'n_plus_one',
@@ -233,6 +234,8 @@ class OverviewTool extends AbstractTool
         array $jobs,
         array $cache
     ): array {
+        // Entries are already normalized in execute() method
+
         return [
             'requests_count' => count($requests),
             'queries_count' => count($queries),
@@ -249,8 +252,9 @@ class OverviewTool extends AbstractTool
      */
     protected function getRecentErrors(array $exceptions): array
     {
+        // Entries are already normalized in execute() method
         $recentErrors = array_slice($exceptions, 0, 3);
-        
+
         return array_map(function ($exception) {
             return [
                 'class' => $exception['content']['class'] ?? 'Unknown',
@@ -349,13 +353,14 @@ class OverviewTool extends AbstractTool
     
     protected function groupExceptions(array $exceptions): array
     {
+        // Entries are already normalized in execute() method
         $groups = [];
-        
+
         foreach ($exceptions as $exception) {
             $class = $exception['content']['class'] ?? 'Unknown';
             $groups[$class] = ($groups[$class] ?? 0) + 1;
         }
-        
+
         return $groups;
     }
     
@@ -375,9 +380,42 @@ class OverviewTool extends AbstractTool
     {
         return [];
     }
-    
+
     protected function getSearchableFields(): array
     {
         return [];
+    }
+
+    /**
+     * Normalize entry to array format.
+     */
+    protected function normalizeEntry($entry): array
+    {
+        if (is_array($entry)) {
+            return $entry;
+        }
+
+        // Handle EntryResult objects from Telescope
+        if (is_object($entry)) {
+            $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
+            $id = isset($entry->id) ? $entry->id : null;
+            $createdAt = isset($entry->created_at) ? $entry->created_at : null;
+
+            return [
+                'id' => $id,
+                'content' => $content,
+                'created_at' => $createdAt,
+            ];
+        }
+
+        return ['id' => null, 'content' => [], 'created_at' => null];
+    }
+
+    /**
+     * Normalize entries array.
+     */
+    protected function normalizeEntries(array $entries): array
+    {
+        return array_map(fn($e) => $this->normalizeEntry($e), $entries);
     }
 }

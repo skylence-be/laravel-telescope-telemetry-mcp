@@ -84,17 +84,22 @@ class ResponseFormatter
     public function formatList(array $entries, array $fields): array
     {
         return array_map(function ($entry) use ($fields) {
+            // Convert EntryResult to array if needed
+            if (is_object($entry) && method_exists($entry, 'toArray')) {
+                $entry = $entry->toArray();
+            }
+
             $formatted = [];
-            
+
             foreach ($fields as $field) {
                 $formatted[$field] = $this->extractField($entry, $field);
             }
-            
+
             // Always include ID if present
             if (isset($entry['id'])) {
                 $formatted['id'] = $entry['id'];
             }
-            
+
             return $formatted;
         }, $entries);
     }
@@ -104,6 +109,11 @@ class ResponseFormatter
      */
     public function formatDetail(array $entry): array
     {
+        // Convert EntryResult to array if needed
+        if (is_object($entry) && method_exists($entry, 'toArray')) {
+            $entry = $entry->toArray();
+        }
+
         return [
             'entry' => $entry,
             'formatted' => $this->formatEntry($entry),
@@ -179,13 +189,18 @@ class ResponseFormatter
      */
     protected function extractKeyFields(array $entry): array
     {
+        // Convert EntryResult to array if needed
+        if (is_object($entry) && method_exists($entry, 'toArray')) {
+            $entry = $entry->toArray();
+        }
+
         $standardFields = $this->getStandardFields();
         $result = [];
-        
+
         foreach ($standardFields as $field) {
             $result[$field] = $this->extractField($entry, $field);
         }
-        
+
         return $result;
     }
     
@@ -285,16 +300,21 @@ class ResponseFormatter
      */
     protected function formatEntry(array $entry): array
     {
+        // Convert EntryResult to array if needed
+        if (is_object($entry) && method_exists($entry, 'toArray')) {
+            $entry = $entry->toArray();
+        }
+
         $formatted = [
             'id' => $entry['id'] ?? null,
             'type' => $entry['type'] ?? null,
             'occurred_at' => $entry['created_at'] ?? null,
         ];
-        
+
         if (isset($entry['content'])) {
             $formatted['details'] = $this->formatContent($entry['content'], $entry['type'] ?? '');
         }
-        
+
         return $formatted;
     }
     

@@ -1,0 +1,64 @@
+{
+    "name": "skylence/laravel-telescope-telemetry-mcp",
+    "description": "Token-optimized Laravel Telescope MCP integration for AI assistants",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "telescope",
+        "mcp",
+        "model-context-protocol",
+        "ai",
+        "claude",
+        "cursor",
+        "debugging",
+        "telemetry",
+        "token-optimized"
+    ],
+    "homepage": "https://github.com/yourusername/laravel-telescope-telemetry-mcp",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jonas",
+            "email": "your-email@example.com"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "laravel/framework": "^9.0|^10.0|^11.0|^12.0",
+        "laravel/telescope": "^4.0|^5.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^7.0|^8.0",
+        "phpunit/phpunit": "^9.5|^10.0",
+        "phpstan/phpstan": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "LaravelTelescope\\Telemetry\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LaravelTelescope\\Telemetry\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage",
+        "analyse": "vendor/bin/phpstan analyse --level=8 src"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "LaravelTelescope\\Telemetry\\TelescopeTelemetryServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

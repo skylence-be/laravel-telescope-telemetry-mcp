@@ -96,15 +96,114 @@ class McpController extends Controller
         return [
             'protocolVersion' => '2024-11-05',
             'serverInfo' => [
-                'name' => 'laravel-telescope-telemetry',
+                'name' => 'Laravel Telescope Telemetry MCP',
                 'version' => '1.0.0',
+                'description' => 'Token-optimized Laravel Telescope MCP integration for AI assistants',
             ],
             'capabilities' => [
                 'tools' => $tools,
-                'prompts' => [],
-                'resources' => [],
+                'resources' => $this->getResources(),
+                'prompts' => $this->getPrompts(),
             ],
+            'metadata' => $this->getMetadata(),
             'instructions' => $this->getInstructions(),
+        ];
+    }
+
+    /**
+     * Get available resources.
+     */
+    protected function getResources(): array
+    {
+        return [
+            'telescope://overview' => [
+                'uri' => 'telescope://overview',
+                'name' => 'Telescope Overview',
+                'description' => 'Complete system overview and health status',
+                'mimeType' => 'application/json',
+            ],
+            'telescope://watchers' => [
+                'uri' => 'telescope://watchers',
+                'name' => 'Telescope Watchers',
+                'description' => 'View configured Telescope watchers and their status',
+                'mimeType' => 'application/json',
+            ],
+            'telescope://entries' => [
+                'uri' => 'telescope://entries',
+                'name' => 'Telescope Entries',
+                'description' => 'Access all Telescope monitoring entries',
+                'mimeType' => 'application/json',
+            ],
+        ];
+    }
+
+    /**
+     * Get available prompts.
+     */
+    protected function getPrompts(): array
+    {
+        return [
+            'analyze-performance' => [
+                'name' => 'analyze-performance',
+                'description' => 'Analyze application performance using Telescope data',
+                'arguments' => [
+                    [
+                        'name' => 'timeframe',
+                        'description' => 'Time period to analyze (e.g., "1 hour", "24 hours")',
+                        'required' => false,
+                    ],
+                ],
+            ],
+            'debug-errors' => [
+                'name' => 'debug-errors',
+                'description' => 'Debug recent errors and exceptions',
+                'arguments' => [
+                    [
+                        'name' => 'limit',
+                        'description' => 'Number of errors to analyze',
+                        'required' => false,
+                    ],
+                ],
+            ],
+            'optimize-queries' => [
+                'name' => 'optimize-queries',
+                'description' => 'Identify and suggest optimizations for slow database queries',
+                'arguments' => [
+                    [
+                        'name' => 'threshold',
+                        'description' => 'Minimum query time in milliseconds to consider',
+                        'required' => false,
+                    ],
+                ],
+            ],
+            'check-health' => [
+                'name' => 'check-health',
+                'description' => 'Perform a comprehensive health check of the application',
+                'arguments' => [],
+            ],
+        ];
+    }
+
+    /**
+     * Get server metadata.
+     */
+    protected function getMetadata(): array
+    {
+        return [
+            'author' => 'Skylence',
+            'repository' => 'https://github.com/skylence-be/laravel-telescope-telemetry-mcp',
+            'license' => 'MIT',
+            'tags' => [
+                'laravel',
+                'telescope',
+                'monitoring',
+                'debugging',
+                'mcp',
+                'observability',
+                'token-optimized',
+                'ai',
+                'telemetry',
+            ],
         ];
     }
     

@@ -83,6 +83,16 @@ class McpController extends Controller
      */
     protected function initialize(array $params): array
     {
+        $tools = [];
+
+        foreach ($this->tools as $name => $tool) {
+            $tools[$name] = [
+                'name' => $name,
+                'description' => $tool->getDescription(),
+                'inputSchema' => $tool->getInputSchema(),
+            ];
+        }
+
         return [
             'protocolVersion' => '2024-11-05',
             'serverInfo' => [
@@ -90,9 +100,7 @@ class McpController extends Controller
                 'version' => '1.0.0',
             ],
             'capabilities' => [
-                'tools' => [
-                    'listChanged' => false,
-                ],
+                'tools' => $tools,
                 'prompts' => [],
                 'resources' => [],
             ],

@@ -93,8 +93,28 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
      */
     protected function registerTools(): void
     {
+        // Register OverviewTool separately since it has special config needs
+        $this->app->singleton(\LaravelTelescope\Telemetry\Tools\OverviewTool::class, function ($app) {
+            return new \LaravelTelescope\Telemetry\Tools\OverviewTool(
+                $app['config']->get('telescope-telemetry.mcp', []),
+                $app[\LaravelTelescope\Telemetry\Services\PaginationManager::class],
+                $app[\LaravelTelescope\Telemetry\Services\ResponseFormatter::class],
+                $app[\LaravelTelescope\Telemetry\Services\CacheManager::class]
+            );
+        });
+
+        // Register QueriesTool separately since it has special config needs
+        $this->app->singleton(\LaravelTelescope\Telemetry\Tools\QueriesTool::class, function ($app) {
+            return new \LaravelTelescope\Telemetry\Tools\QueriesTool(
+                $app['config']->get('telescope-telemetry.mcp.tools.queries', []),
+                $app[\LaravelTelescope\Telemetry\Services\PaginationManager::class],
+                $app[\LaravelTelescope\Telemetry\Services\ResponseFormatter::class],
+                $app[\LaravelTelescope\Telemetry\Services\CacheManager::class]
+            );
+        });
+
         $toolsConfig = $this->app['config']->get('telescope-telemetry.mcp.tools', []);
-        
+
         foreach ($toolsConfig as $toolName => $config) {
             if ($config['enabled'] ?? true) {
                 $this->registerTool($toolName, $config);

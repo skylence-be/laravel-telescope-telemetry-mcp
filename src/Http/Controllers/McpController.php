@@ -1,42 +1,196 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Http\Controllers;
+declare(strict_types=1);
 
-use Illuminate\Http\Request;
+namespace Skylence\TelescopeMcp\Http\Controllers;
+
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use LaravelTelescope\Telemetry\Services\ResponseFormatter;
-use LaravelTelescope\Telemetry\Services\PaginationManager;
+use Illuminate\Support\Facades\Log;
+use Skylence\TelescopeMcp\MCP\TelescopeMcpServer;
+use Skylence\TelescopeMcp\Support\JsonRpcResponse;
 
-class McpController extends Controller
+final class McpController extends Controller
 {
-    protected ResponseFormatter $formatter;
-    protected PaginationManager $pagination;
-    protected array $tools = [];
-    
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
-        ResponseFormatter $formatter,
-        PaginationManager $pagination
+        private readonly TelescopeMcpServer $server
     ) {
-        $this->formatter = $formatter;
-        $this->pagination = $pagination;
-        $this->registerTools();
     }
-    
+
+    /**
+     * Handle JSON-RPC requests.
+     */
+    public function handle(Request $request): JsonResponse
+    {
+        $this->log('info', 'MCP request received', [
+            'method' => $request->method(),
+            'uri' => $request->fullUrl(),
+            'input_all' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+        ]);
+
+        // Validate Content-Type for POST requests
+        if (! $request->isJson()) {
+            $this->log('warning', 'MCP request: Content-Type is not JSON', [
+                'content_type' => $request->header('Content-Type'),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Parse error: Content-Type must be application/json',
+                    JsonRpcResponse::PARSE_ERROR,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Validate non-empty body
+        $rawContent = $request->getContent();
+        if (empty($rawContent)) {
+            $this->log('warning', 'MCP request: Empty JSON body');
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid Request: Empty JSON body',
+                    JsonRpcResponse::INVALID_REQUEST,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Validate JSON parsing
+        $decoded = json_decode($rawContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->log('warning', 'MCP request: JSON parse error', [
+                'json_error' => json_last_error_msg(),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Parse error: Invalid JSON in request body. Error: '.json_last_error_msg(),
+                    JsonRpcResponse::PARSE_ERROR,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Validate decoded type
+        if (! is_array($decoded)) {
+            $this->log('warning', 'MCP request: Decoded JSON is not an array/object', [
+                'decoded_type' => gettype($decoded),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid Request: JSON body must be an object',
+                    JsonRpcResponse::INVALID_REQUEST,
+                    null
+                ),
+                400
+            );
+        }
+
+        $jsonrpc = $decoded['jsonrpc'] ?? null;
+        $id = $decoded['id'] ?? null;
+        $method = $decoded['method'] ?? null;
+        $params = $decoded['params'] ?? [];
+
+        // Validate JSON-RPC version
+        if ($jsonrpc !== '2.0') {
+            $this->log('warning', 'MCP request: Invalid JSON-RPC version', [
+                'version_received' => $jsonrpc,
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    "Invalid JSON-RPC version. Must be '2.0'",
+                    JsonRpcResponse::INVALID_REQUEST,
+                    $id
+                ),
+                400
+            );
+        }
+
+        // Validate method
+        if (empty($method) || ! is_string($method)) {
+            $this->log('warning', 'MCP request: Missing or invalid method', [
+                'method_received' => $method,
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid Request: Method is missing or not a string',
+                    JsonRpcResponse::INVALID_REQUEST,
+                    $id
+                ),
+                400
+            );
+        }
+
+        $this->log('info', 'JSON-RPC request processing', [
+            'jsonrpc_version' => $jsonrpc,
+            'id' => $id,
+            'method' => $method,
+            'params_type' => gettype($params),
+        ]);
+
+        // Handle notifications (no response expected)
+        if ($method === 'notifications/initialized' && is_null($id)) {
+            $this->log('info', 'MCP notification: Client initialized');
+
+            return new JsonResponse(null, 204);
+        }
+
+        try {
+            $result = match ($method) {
+                'initialize', 'mcp.manifest', 'mcp.getManifest' => $this->getManifestResponse(),
+                'tools/list' => ['tools' => $this->server->getTools()],
+                'tools/call' => $this->callToolViaJsonRpc($params, $id),
+                default => throw new \Exception("Method not found: {$method}"),
+            };
+
+            $this->log('info', 'MCP request completed', ['method' => $method]);
+
+            // For tools/call, the result is already a complete JSON-RPC response
+            if ($method === 'tools/call' && is_array($result) && isset($result['jsonrpc'])) {
+                return new JsonResponse($result);
+            }
+
+            return new JsonResponse(JsonRpcResponse::success($result, $id));
+        } catch (\Exception $e) {
+            $this->log('error', 'MCP request failed', [
+                'method' => $method,
+                'error' => $e->getMessage(),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error($e->getMessage(), JsonRpcResponse::INTERNAL_ERROR, $id)
+            );
+        }
+    }
+
     /**
      * Get the server manifest.
      */
     public function manifest(Request $request): JsonResponse
     {
+        $this->log('info', 'MCP manifest request received', [
+            'method' => $request->method(),
+            'uri' => $request->fullUrl(),
+        ]);
+
         // Handle GET requests for manifest
         if ($request->method() === 'GET') {
-            $initData = $this->initialize([]);
-
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'result' => $initData,
-                'id' => null,
-            ]);
+            return new JsonResponse(
+                JsonRpcResponse::success($this->buildManifestResponse())
+            );
         }
 
         // For POST requests, treat as JSON-RPC call
@@ -44,334 +198,356 @@ class McpController extends Controller
     }
 
     /**
-     * Handle MCP JSON-RPC request.
+     * Get manifest response in MCP protocol format.
      */
-    public function handle(Request $request): JsonResponse
+    private function getManifestResponse(): array
     {
-        $method = $request->input('method');
-        $params = $request->input('params', []);
-        $id = $request->input('id');
-        
-        try {
-            $result = match ($method) {
-                'initialize' => $this->initialize($params),
-                'tools/list' => $this->listTools(),
-                'tools/call' => $this->callTool($params),
-                'ping' => ['status' => 'pong'],
-                default => throw new \Exception("Unknown method: {$method}", -32601),
-            };
-            
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'result' => $result,
-                'id' => $id,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'error' => [
-                    'code' => $e->getCode() ?: -32603,
-                    'message' => $e->getMessage(),
-                ],
-                'id' => $id,
-            ], 400);
-        }
+        return $this->buildManifestResponse();
     }
-    
-    /**
-     * Initialize MCP connection.
-     */
-    protected function initialize(array $params): array
-    {
-        $tools = [];
 
-        foreach ($this->tools as $name => $tool) {
-            $tools[$name] = [
-                'name' => $name,
-                'description' => $tool->getDescription(),
-                'inputSchema' => $tool->getInputSchema(),
-            ];
-        }
+    /**
+     * Build the complete manifest response.
+     */
+    private function buildManifestResponse(): array
+    {
+        $manifest = $this->server->getManifest();
 
         return [
             'protocolVersion' => '2024-11-05',
             'serverInfo' => [
-                'name' => 'Laravel Telescope Telemetry MCP',
-                'version' => '1.0.0',
-                'description' => 'Token-optimized Laravel Telescope MCP integration for AI assistants',
+                'name' => $manifest['name'],
+                'version' => $manifest['version'],
+                'description' => $manifest['description'],
             ],
             'capabilities' => [
-                'tools' => $tools,
-                'resources' => $this->getResources(),
-                'prompts' => $this->getPrompts(),
-            ],
-            'metadata' => $this->getMetadata(),
-            'instructions' => $this->getInstructions(),
-        ];
-    }
-
-    /**
-     * Get available resources.
-     */
-    protected function getResources(): array
-    {
-        return [
-            'telescope://overview' => [
-                'uri' => 'telescope://overview',
-                'name' => 'Telescope Overview',
-                'description' => 'Complete system overview and health status',
-                'mimeType' => 'application/json',
-            ],
-            'telescope://watchers' => [
-                'uri' => 'telescope://watchers',
-                'name' => 'Telescope Watchers',
-                'description' => 'View configured Telescope watchers and their status',
-                'mimeType' => 'application/json',
-            ],
-            'telescope://entries' => [
-                'uri' => 'telescope://entries',
-                'name' => 'Telescope Entries',
-                'description' => 'Access all Telescope monitoring entries',
-                'mimeType' => 'application/json',
+                'tools' => (object) $manifest['tools'],
             ],
         ];
     }
 
     /**
-     * Get available prompts.
+     * Call a tool via JSON-RPC and return formatted MCP response.
      */
-    protected function getPrompts(): array
+    private function callToolViaJsonRpc(array $params, string|int|null $id): array
     {
-        return [
-            'analyze-performance' => [
-                'name' => 'analyze-performance',
-                'description' => 'Analyze application performance using Telescope data',
-                'arguments' => [
-                    [
-                        'name' => 'timeframe',
-                        'description' => 'Time period to analyze (e.g., "1 hour", "24 hours")',
-                        'required' => false,
-                    ],
-                ],
-            ],
-            'debug-errors' => [
-                'name' => 'debug-errors',
-                'description' => 'Debug recent errors and exceptions',
-                'arguments' => [
-                    [
-                        'name' => 'limit',
-                        'description' => 'Number of errors to analyze',
-                        'required' => false,
-                    ],
-                ],
-            ],
-            'optimize-queries' => [
-                'name' => 'optimize-queries',
-                'description' => 'Identify and suggest optimizations for slow database queries',
-                'arguments' => [
-                    [
-                        'name' => 'threshold',
-                        'description' => 'Minimum query time in milliseconds to consider',
-                        'required' => false,
-                    ],
-                ],
-            ],
-            'check-health' => [
-                'name' => 'check-health',
-                'description' => 'Perform a comprehensive health check of the application',
-                'arguments' => [],
-            ],
-        ];
-    }
-
-    /**
-     * Get server metadata.
-     */
-    protected function getMetadata(): array
-    {
-        return [
-            'author' => 'Skylence',
-            'repository' => 'https://github.com/skylence-be/laravel-telescope-telemetry-mcp',
-            'license' => 'MIT',
-            'tags' => [
-                'laravel',
-                'telescope',
-                'monitoring',
-                'debugging',
-                'mcp',
-                'observability',
-                'token-optimized',
-                'ai',
-                'telemetry',
-            ],
-        ];
-    }
-    
-    /**
-     * List available tools.
-     */
-    public function listTools(): JsonResponse|array
-    {
-        $tools = [];
-        
-        foreach ($this->tools as $name => $tool) {
-            $tools[] = [
-                'name' => $name,
-                'description' => $tool->getDescription(),
-                'inputSchema' => $tool->getInputSchema(),
-            ];
+        // Validate params is an array
+        if (! is_array($params)) {
+            throw new \InvalidArgumentException('Invalid params: Must be an object');
         }
-        
-        // If called directly via HTTP
-        if (request()->isMethod('GET')) {
-            return response()->json([
-                'tools' => $tools,
-                'count' => count($tools),
-                'categories' => $this->categorizeTools($tools),
-            ]);
-        }
-        
-        return ['tools' => $tools];
-    }
-    
-    /**
-     * Call a specific tool.
-     */
-    protected function callTool(array $params): array
-    {
+
         $toolName = $params['name'] ?? null;
         $arguments = $params['arguments'] ?? [];
-        
-        if (!$toolName) {
-            throw new \Exception('Tool name is required', -32602);
+
+        // Validate tool name
+        if (! $toolName || ! is_string($toolName)) {
+            throw new \InvalidArgumentException('Invalid params: tool name is required and must be a string');
         }
-        
-        if (!isset($this->tools[$toolName])) {
-            throw new \Exception("Tool not found: {$toolName}", -32602);
+
+        // Validate arguments
+        if (! is_array($arguments) && ! is_object($arguments)) {
+            throw new \InvalidArgumentException('Invalid params: arguments must be an array or object');
         }
-        
-        $tool = $this->tools[$toolName];
-        
-        return [
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => json_encode($tool->execute($arguments), JSON_PRETTY_PRINT),
+
+        // Extract short name from full name if needed
+        $toolName = str_replace('mcp__telescope-mcp__', '', $toolName);
+
+        $this->log('info', 'Executing tool via JSON-RPC', [
+            'tool_name' => $toolName,
+        ]);
+
+        $result = $this->server->executeTool($toolName, (array) $arguments);
+
+        return JsonRpcResponse::mcpToolResponse($result, $id);
+    }
+
+    /**
+     * Call a tool via JSON-RPC.
+     */
+    public function callTool(Request|array $params): array
+    {
+        if ($params instanceof Request) {
+            $params = $params->all();
+        }
+
+        // Validate params is an array
+        if (! is_array($params)) {
+            throw new \InvalidArgumentException('Invalid params: Must be an object');
+        }
+
+        $toolName = $params['name'] ?? null;
+        $arguments = $params['arguments'] ?? [];
+
+        // Validate tool name
+        if (! $toolName || ! is_string($toolName)) {
+            throw new \InvalidArgumentException('Invalid params: tool name is required and must be a string');
+        }
+
+        // Validate arguments
+        if (! is_array($arguments) && ! is_object($arguments)) {
+            throw new \InvalidArgumentException('Invalid params: arguments must be an array or object');
+        }
+
+        // Extract short name from full name if needed
+        $toolName = str_replace('mcp__telescope-mcp__', '', $toolName);
+
+        $this->log('info', 'Executing tool via JSON-RPC', [
+            'tool_name' => $toolName,
+        ]);
+
+        return $this->server->executeTool($toolName, (array) $arguments);
+    }
+
+    /**
+     * Execute a tool call via JSON-RPC (tools/call endpoint).
+     */
+    public function executeToolCall(Request $request): JsonResponse
+    {
+        $this->log('info', 'MCP executeToolCall received', [
+            'method' => $request->method(),
+            'uri' => $request->fullUrl(),
+            'input_all' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+        ]);
+
+        // Validate Content-Type
+        if (! $request->isJson()) {
+            $this->log('warning', 'executeToolCall: Content-Type is not JSON', [
+                'content_type' => $request->header('Content-Type'),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Parse error: Content-Type must be application/json',
+                    JsonRpcResponse::PARSE_ERROR,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Validate non-empty body
+        $rawContent = $request->getContent();
+        if (empty($rawContent)) {
+            $this->log('warning', 'executeToolCall: Empty JSON body');
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid Request: Empty JSON body',
+                    JsonRpcResponse::INVALID_REQUEST,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Parse JSON
+        $decoded = json_decode($rawContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->log('warning', 'executeToolCall: JSON parse error', [
+                'json_error' => json_last_error_msg(),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Parse error: Invalid JSON in request body. Error: '.json_last_error_msg(),
+                    JsonRpcResponse::PARSE_ERROR,
+                    null
+                ),
+                400
+            );
+        }
+
+        // Validate decoded type
+        if (! is_array($decoded)) {
+            $this->log('warning', 'executeToolCall: Decoded JSON is not an array/object', [
+                'decoded_type' => gettype($decoded),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid Request: JSON body must be an object',
+                    JsonRpcResponse::INVALID_REQUEST,
+                    null
+                ),
+                400
+            );
+        }
+
+        $jsonrpc = $decoded['jsonrpc'] ?? null;
+        $id = $decoded['id'] ?? null;
+        $params = $decoded['params'] ?? [];
+
+        // Validate JSON-RPC version
+        if ($jsonrpc !== '2.0') {
+            $this->log('warning', 'executeToolCall: Invalid JSON-RPC version', [
+                'version_received' => $jsonrpc,
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    "Invalid JSON-RPC version. Must be '2.0'",
+                    JsonRpcResponse::INVALID_REQUEST,
+                    $id
+                ),
+                400
+            );
+        }
+
+        // Validate params
+        if (! is_array($params)) {
+            $this->log('warning', 'MCP executeToolCall: params is not an object/array', [
+                'params_received' => $params,
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid params: Must be an object',
+                    JsonRpcResponse::INVALID_PARAMS,
+                    $id
+                ),
+                400
+            );
+        }
+
+        $toolName = $params['name'] ?? null;
+        $arguments = $params['arguments'] ?? [];
+
+        // Validate tool name
+        if (! $toolName || ! is_string($toolName)) {
+            $this->log('warning', 'executeToolCall: Missing or invalid tool name', [
+                'tool_name_received' => $toolName,
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid params: tool name is required and must be a string',
+                    JsonRpcResponse::INVALID_PARAMS,
+                    $id
+                ),
+                400
+            );
+        }
+
+        // Validate arguments
+        if (! is_array($arguments) && ! is_object($arguments)) {
+            $this->log('warning', 'MCP executeToolCall: Invalid arguments type', [
+                'arguments_type' => gettype($arguments),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    'Invalid params: arguments must be an array or object',
+                    JsonRpcResponse::INVALID_PARAMS,
+                    $id
+                ),
+                400
+            );
+        }
+
+        $this->log('info', 'Executing tool via executeToolCall', [
+            'tool_name' => $toolName,
+        ]);
+
+        try {
+            $result = $this->callTool($params);
+
+            return new JsonResponse(JsonRpcResponse::mcpToolResponse($result, $id));
+        } catch (\Exception $e) {
+            $this->log('error', 'executeToolCall: Tool execution error', [
+                'tool' => $toolName,
+                'error' => $e->getMessage(),
+            ]);
+
+            return new JsonResponse(
+                JsonRpcResponse::error(
+                    $e->getMessage(),
+                    JsonRpcResponse::INTERNAL_ERROR,
+                    $id
+                ),
+                500
+            );
+        }
+    }
+
+    /**
+     * Execute a specific tool directly.
+     */
+    public function executeTool(Request $request, string $tool): JsonResponse
+    {
+        try {
+            $this->log('info', 'MCP tool execution request', [
+                'tool' => $tool,
+                'method' => $request->method(),
+                'input' => $request->all(),
+            ]);
+
+            // Validate request is JSON for POST requests
+            if ($request->method() === 'POST' && ! $request->isJson()) {
+                $this->log('warning', 'Invalid request format - not JSON', [
+                    'tool' => $tool,
+                    'content_type' => $request->header('Content-Type'),
+                ]);
+
+                return new JsonResponse([
+                    'content' => [
+                        [
+                            'type' => 'error',
+                            'text' => 'Parse error: Content-Type must be application/json',
+                        ],
+                    ],
+                ], 400);
+            }
+
+            $params = $request->all();
+
+            $this->log('debug', 'Executing tool', [
+                'tool' => $tool,
+                'params' => $params,
+            ]);
+
+            $result = $this->server->executeTool($tool, $params);
+
+            // Format response in MCP standard format
+            $response = [
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => json_encode($result),
+                    ],
                 ],
-            ],
-            'isError' => false,
-        ];
-    }
-    
-    /**
-     * Register all available tools.
-     */
-    protected function registerTools(): void
-    {
-        $toolClasses = [
-            'telescope.overview' => \LaravelTelescope\Telemetry\Tools\OverviewTool::class,
-            'telescope.requests' => \LaravelTelescope\Telemetry\Tools\RequestsTool::class,
-            'telescope.queries' => \LaravelTelescope\Telemetry\Tools\QueriesTool::class,
-            'telescope.exceptions' => \LaravelTelescope\Telemetry\Tools\ExceptionsTool::class,
-            'telescope.jobs' => \LaravelTelescope\Telemetry\Tools\JobsTool::class,
-            'telescope.cache' => \LaravelTelescope\Telemetry\Tools\CacheTool::class,
-            'telescope.logs' => \LaravelTelescope\Telemetry\Tools\LogsTool::class,
-            'telescope.events' => \LaravelTelescope\Telemetry\Tools\EventsTool::class,
-            'telescope.mail' => \LaravelTelescope\Telemetry\Tools\MailTool::class,
-            'telescope.models' => \LaravelTelescope\Telemetry\Tools\ModelsTool::class,
-            'telescope.redis' => \LaravelTelescope\Telemetry\Tools\RedisTool::class,
-            'telescope.commands' => \LaravelTelescope\Telemetry\Tools\CommandsTool::class,
-            'telescope.schedule' => \LaravelTelescope\Telemetry\Tools\ScheduleTool::class,
-            'telescope.notifications' => \LaravelTelescope\Telemetry\Tools\NotificationsTool::class,
-            'telescope.gates' => \LaravelTelescope\Telemetry\Tools\GatesTool::class,
-            'telescope.views' => \LaravelTelescope\Telemetry\Tools\ViewsTool::class,
-            'telescope.http_client' => \LaravelTelescope\Telemetry\Tools\HttpClientTool::class,
-            'telescope.dumps' => \LaravelTelescope\Telemetry\Tools\DumpsTool::class,
-            'telescope.batches' => \LaravelTelescope\Telemetry\Tools\BatchesTool::class,
-            
-            // Analysis tools
-            'telescope.analysis.performance' => \LaravelTelescope\Telemetry\Tools\Analysis\PerformanceAnalysisTool::class,
-            'telescope.analysis.bottlenecks' => \LaravelTelescope\Telemetry\Tools\Analysis\BottleneckAnalysisTool::class,
-            'telescope.analysis.health' => \LaravelTelescope\Telemetry\Tools\Analysis\HealthCheckTool::class,
-            'telescope.analysis.suggestions' => \LaravelTelescope\Telemetry\Tools\Analysis\SuggestionsTool::class,
-        ];
-        
-        foreach ($toolClasses as $name => $class) {
-            if (class_exists($class)) {
-                try {
-                    $this->tools[$name] = app($class);
-                } catch (\Exception $e) {
-                    // Tool not available, skip
-                }
-            }
+            ];
+
+            $this->log('info', 'Tool execution successful', [
+                'tool' => $tool,
+            ]);
+
+            return new JsonResponse($response);
+        } catch (\Exception $e) {
+            $this->log('error', 'Tool execution failed', [
+                'tool' => $tool,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return new JsonResponse([
+                'content' => [
+                    [
+                        'type' => 'error',
+                        'text' => $e->getMessage(),
+                    ],
+                ],
+            ], 500);
         }
     }
-    
+
     /**
-     * Categorize tools for better organization.
+     * Log a message if logging is enabled.
      */
-    protected function categorizeTools(array $tools): array
+    private function log(string $level, string $message, array $context = []): void
     {
-        $categories = [
-            'overview' => [],
-            'monitoring' => [],
-            'database' => [],
-            'performance' => [],
-            'errors' => [],
-            'communication' => [],
-            'analysis' => [],
-        ];
-        
-        foreach ($tools as $tool) {
-            $name = $tool['name'];
-            
-            if (str_contains($name, 'overview')) {
-                $categories['overview'][] = $name;
-            } elseif (str_contains($name, 'analysis')) {
-                $categories['analysis'][] = $name;
-            } elseif (in_array($name, ['telescope.requests', 'telescope.jobs', 'telescope.commands'])) {
-                $categories['performance'][] = $name;
-            } elseif (in_array($name, ['telescope.queries', 'telescope.models', 'telescope.redis'])) {
-                $categories['database'][] = $name;
-            } elseif (in_array($name, ['telescope.exceptions', 'telescope.logs', 'telescope.dumps'])) {
-                $categories['errors'][] = $name;
-            } elseif (in_array($name, ['telescope.mail', 'telescope.notifications', 'telescope.events'])) {
-                $categories['communication'][] = $name;
-            } else {
-                $categories['monitoring'][] = $name;
-            }
+        if (config('telescope-telemetry.mcp.logging.enabled', false)) {
+            $channel = config('telescope-telemetry.mcp.logging.channel', 'stack');
+            Log::channel($channel)->$level($message, $context);
         }
-        
-        return array_filter($categories);
-    }
-    
-    /**
-     * Get MCP server instructions.
-     */
-    protected function getInstructions(): string
-    {
-        return <<<'INSTRUCTIONS'
-        This is a token-optimized Laravel Telescope MCP server.
-        
-        Key features:
-        - Responses are optimized for AI token consumption
-        - Default limit is 10 entries (max 25) to prevent token overflow
-        - Use summary mode for overview before requesting details
-        - Progressive disclosure: summary → list → detail
-        
-        Recommended workflow:
-        1. Start with telescope.overview for system health
-        2. Use telescope.analysis.* tools for automated insights
-        3. Drill down into specific areas only when needed
-        4. Use pagination for large datasets
-        
-        Query parameters:
-        - limit: Number of results (default 10, max 25)
-        - mode: Response mode (summary|standard|detailed)
-        - fields: Comma-separated fields to include
-        - page: Page number for pagination
-        
-        All responses include token usage estimates.
-        INSTRUCTIONS;
     }
 }

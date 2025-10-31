@@ -1,47 +1,64 @@
 <?php
 
-namespace LaravelTelescope\Telemetry;
+declare(strict_types=1);
 
-use Illuminate\Support\ServiceProvider;
+namespace Skylence\TelescopeMcp;
+
 use Illuminate\Support\Facades\Route;
-use LaravelTelescope\Telemetry\Services\PaginationManager;
-use LaravelTelescope\Telemetry\Services\ResponseFormatter;
-use LaravelTelescope\Telemetry\Services\PerformanceAnalyzer;
-use LaravelTelescope\Telemetry\Services\QueryAnalyzer;
-use LaravelTelescope\Telemetry\Services\CacheManager;
-use LaravelTelescope\Telemetry\Services\AggregationService;
-use LaravelTelescope\Telemetry\Http\Middleware\AuthenticateMcp;
-use LaravelTelescope\Telemetry\Http\Middleware\OptimizeResponse;
+use Illuminate\Support\ServiceProvider;
+use Skylence\TelescopeMcp\Http\Middleware\AuthenticateMcp;
+use Skylence\TelescopeMcp\Http\Middleware\OptimizeResponse;
+use Skylence\TelescopeMcp\MCP\TelescopeMcpServer;
+use Skylence\TelescopeMcp\Services\AggregationService;
+use Skylence\TelescopeMcp\Services\CacheManager;
+use Skylence\TelescopeMcp\Services\PaginationManager;
+use Skylence\TelescopeMcp\Services\PerformanceAnalyzer;
+use Skylence\TelescopeMcp\Services\QueryAnalyzer;
+use Skylence\TelescopeMcp\Services\ResponseFormatter;
 
-class TelescopeTelemetryServiceProvider extends ServiceProvider
+final class TelescopeTelemetryServiceProvider extends ServiceProvider
 {
     /**
-     * Bootstrap the application services.
-     */
-    public function boot(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/telescope-telemetry.php' => config_path('telescope-telemetry.php'),
-            ], 'telescope-telemetry-config');
-        }
-
-        $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
-        
-        $this->registerMiddleware();
-    }
-
-    /**
-     * Register the application services.
+     * Register any application services.
      */
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/telescope-telemetry.php', 'telescope-telemetry'
+            __DIR__.'/../config/telescope-telemetry.php',
+            'telescope-telemetry'
         );
 
+        // Register core services
         $this->registerServices();
+
+        // Register MCP server
+        $this->app->singleton(TelescopeMcpServer::class, function ($app) {
+            return new TelescopeMcpServer();
+        });
+
+        // Register tools
         $this->registerTools();
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        if (! config('telescope-telemetry.mcp.enabled', true)) {
+            return;
+        }
+
+        // Publish configuration
+        $this->publishes([
+            __DIR__.'/../config/telescope-telemetry.php' => config_path('telescope-telemetry.php'),
+        ], 'telescope-telemetry-config');
+
+        // Register middleware
+        $this->registerMiddleware();
+
+        // Register routes
+        $this->registerRoutes();
     }
 
     /**
@@ -75,6 +92,7 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
 
         $this->app->singleton(CacheManager::class, function ($app) {
             $cacheDriver = $app['config']->get('telescope-telemetry.mcp.cache.driver', 'redis');
+
             return new CacheManager(
                 $app['config']->get('telescope-telemetry.mcp.cache'),
                 $app['cache']->driver($cacheDriver)
@@ -93,26 +111,6 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
      */
     protected function registerTools(): void
     {
-        // Register OverviewTool separately since it has special config needs
-        $this->app->singleton(\LaravelTelescope\Telemetry\Tools\OverviewTool::class, function ($app) {
-            return new \LaravelTelescope\Telemetry\Tools\OverviewTool(
-                $app['config']->get('telescope-telemetry.mcp', []),
-                $app[\LaravelTelescope\Telemetry\Services\PaginationManager::class],
-                $app[\LaravelTelescope\Telemetry\Services\ResponseFormatter::class],
-                $app[\LaravelTelescope\Telemetry\Services\CacheManager::class]
-            );
-        });
-
-        // Register QueriesTool separately since it has special config needs
-        $this->app->singleton(\LaravelTelescope\Telemetry\Tools\QueriesTool::class, function ($app) {
-            return new \LaravelTelescope\Telemetry\Tools\QueriesTool(
-                $app['config']->get('telescope-telemetry.mcp.tools.queries', []),
-                $app[\LaravelTelescope\Telemetry\Services\PaginationManager::class],
-                $app[\LaravelTelescope\Telemetry\Services\ResponseFormatter::class],
-                $app[\LaravelTelescope\Telemetry\Services\CacheManager::class]
-            );
-        });
-
         $toolsConfig = $this->app['config']->get('telescope-telemetry.mcp.tools', []);
 
         foreach ($toolsConfig as $toolName => $config) {
@@ -128,7 +126,7 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
     protected function registerTool(string $name, array $config): void
     {
         $className = $this->getToolClassName($name);
-        
+
         if (class_exists($className)) {
             $this->app->singleton($className, function ($app) use ($config, $className) {
                 return new $className(
@@ -138,7 +136,7 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
                     $app[CacheManager::class]
                 );
             });
-            
+
             // Register tool alias for easier resolution
             $this->app->alias($className, "telescope.tool.{$name}");
         }
@@ -150,7 +148,8 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
     protected function getToolClassName(string $name): string
     {
         $toolName = str_replace('_', '', ucwords($name, '_'));
-        return "LaravelTelescope\\Telemetry\\Tools\\{$toolName}Tool";
+
+        return "Skylence\\TelescopeMcp\\Tools\\{$toolName}Tool";
     }
 
     /**
@@ -159,8 +158,21 @@ class TelescopeTelemetryServiceProvider extends ServiceProvider
     protected function registerMiddleware(): void
     {
         $router = $this->app['router'];
-        
+
         $router->aliasMiddleware('telescope.mcp.auth', AuthenticateMcp::class);
         $router->aliasMiddleware('telescope.mcp.optimize', OptimizeResponse::class);
+    }
+
+    /**
+     * Register the package routes.
+     */
+    protected function registerRoutes(): void
+    {
+        Route::group([
+            'prefix' => config('telescope-telemetry.mcp.path', 'telescope-mcp'),
+            'middleware' => config('telescope-telemetry.mcp.middleware', ['api']),
+        ], function () {
+            $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+        });
     }
 }

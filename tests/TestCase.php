@@ -1,9 +1,9 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Tests;
+namespace Skylence\TelescopeMcp\Tests;
 
 use Orchestra\Testbench\TestCase as Orchestra;
-use LaravelTelescope\Telemetry\TelescopeTelemetryServiceProvider;
+use Skylence\TelescopeMcp\TelescopeTelemetryServiceProvider;
 use Laravel\Telescope\TelescopeServiceProvider;
 
 abstract class TestCase extends Orchestra

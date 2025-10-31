@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Contracts;
+namespace Skylence\\TelescopeMcp\Contracts;
 
 interface ToolInterface
 {

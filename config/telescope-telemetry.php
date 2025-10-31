@@ -13,8 +13,22 @@ return [
 
     'mcp' => [
         'enabled' => env('TELESCOPE_TELEMETRY_ENABLED', true),
-        'path' => env('TELESCOPE_TELEMETRY_PATH', 'telescope-telemetry'),
-        
+        'path' => env('TELESCOPE_TELEMETRY_PATH', 'telescope-mcp'),
+        'middleware' => ['api'],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Logging Configuration
+        |--------------------------------------------------------------------------
+        |
+        | Enable logging and configure the channel to use for MCP requests
+        |
+        */
+        'logging' => [
+            'enabled' => env('TELESCOPE_TELEMETRY_LOGGING_ENABLED', false),
+            'channel' => env('TELESCOPE_TELEMETRY_LOGGING_CHANNEL', 'stack'),
+        ],
+
         /*
         |--------------------------------------------------------------------------
         | Token Optimization Settings

@@ -1,40 +1,34 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Support\Facades\Route;
-use LaravelTelescope\Telemetry\Http\Controllers\McpController;
-use LaravelTelescope\Telemetry\Http\Controllers\OverviewController;
-use LaravelTelescope\Telemetry\Http\Controllers\AnalysisController;
+use Skylence\TelescopeMcp\Http\Controllers\McpController;
 
-$config = config('telescope-telemetry.mcp');
-$path = $config['path'] ?? 'telescope-telemetry';
-$middleware = array_merge(
-    $config['auth']['middleware'] ?? ['api'],
-    ['telescope.mcp.optimize']
-);
+// Specific route for MCP tools/call (must come before generic route)
+Route::post('tools/call', [McpController::class, 'executeToolCall']);
 
-if ($config['auth']['enabled'] ?? true) {
-    $middleware[] = 'telescope.mcp.auth';
-}
+// Base route for MCP protocol
+Route::post('/', [McpController::class, 'handle']);
 
-Route::prefix($path)
-    ->middleware($middleware)
-    ->group(function () {
-        // MCP Protocol endpoints
-        Route::post('/', [McpController::class, 'handle']);
-        Route::get('/manifest.json', [McpController::class, 'manifest']);
-        Route::post('/manifest.json', [McpController::class, 'handle']);
-        Route::get('/tools', [McpController::class, 'listTools']);
-        
-        // Overview endpoints
-        Route::get('/overview', [OverviewController::class, 'dashboard']);
-        Route::get('/overview/health', [OverviewController::class, 'health']);
-        Route::get('/overview/performance', [OverviewController::class, 'performance']);
-        Route::get('/overview/problems', [OverviewController::class, 'problems']);
-        
-        // Analysis endpoints
-        Route::get('/analysis/slow-queries', [AnalysisController::class, 'slowQueries']);
-        Route::get('/analysis/n-plus-one', [AnalysisController::class, 'nPlusOne']);
-        Route::get('/analysis/bottlenecks', [AnalysisController::class, 'bottlenecks']);
-        Route::get('/analysis/trends', [AnalysisController::class, 'trends']);
-        Route::get('/analysis/suggestions', [AnalysisController::class, 'suggestions']);
-    });
+// Alternative routes for direct access
+Route::get('/manifest.json', [McpController::class, 'manifest']);
+Route::post('/manifest.json', [McpController::class, 'manifest']);
+
+// Route for executing specific tools
+Route::post('/tools/{tool}', [McpController::class, 'executeTool'])
+    ->where('tool', '[a-zA-Z0-9_]+'); // Prevents conflict with tools/call
+
+// Catch-all route for debugging
+Route::any('{any}', function () {
+    if (config('telescope-telemetry.mcp.logging.enabled', false)) {
+        \Illuminate\Support\Facades\Log::channel(config('telescope-telemetry.mcp.logging.channel', 'stack'))
+            ->info('MCP Route not found', [
+                'method' => request()->method(),
+                'path' => request()->path(),
+                'input' => request()->all(),
+            ]);
+    }
+
+    return response()->json(['error' => 'Route not found'], 404);
+})->where('any', '.*');

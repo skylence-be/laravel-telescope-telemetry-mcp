@@ -39,12 +39,12 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelTelescope\\Telemetry\\": "src/"
+            "Skylence\\TelescopeMcp\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "LaravelTelescope\\Telemetry\\Tests\\": "tests/"
+            "Skylence\\TelescopeMcp\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -60,7 +60,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "LaravelTelescope\\Telemetry\\TelescopeTelemetryServiceProvider"
+                "Skylence\\TelescopeMcp\\TelescopeTelemetryServiceProvider"
             ]
         }
     },

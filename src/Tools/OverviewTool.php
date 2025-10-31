@@ -1,79 +1,84 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Tools;
+declare(strict_types=1);
+
+namespace Skylence\TelescopeMcp\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LaravelTelescope\Telemetry\Services\PerformanceAnalyzer;
-use LaravelTelescope\Telemetry\Services\QueryAnalyzer;
+use Skylence\TelescopeMcp\Services\CacheManager;
+use Skylence\TelescopeMcp\Services\PaginationManager;
+use Skylence\TelescopeMcp\Services\PerformanceAnalyzer;
+use Skylence\TelescopeMcp\Services\QueryAnalyzer;
+use Skylence\TelescopeMcp\Services\ResponseFormatter;
 
-class OverviewTool extends AbstractTool
+final class OverviewTool extends AbstractTool
 {
     protected string $entryType = '';
     protected PerformanceAnalyzer $performanceAnalyzer;
     protected QueryAnalyzer $queryAnalyzer;
-    
+
     public function __construct(
         array $config,
-        \LaravelTelescope\Telemetry\Services\PaginationManager $pagination,
-        \LaravelTelescope\Telemetry\Services\ResponseFormatter $formatter,
-        \LaravelTelescope\Telemetry\Services\CacheManager $cache
+        PaginationManager $pagination,
+        ResponseFormatter $formatter,
+        CacheManager $cache
     ) {
         parent::__construct($config, $pagination, $formatter, $cache);
         $this->performanceAnalyzer = app(PerformanceAnalyzer::class);
         $this->queryAnalyzer = app(QueryAnalyzer::class);
     }
-    
-    public function getName(): string
+
+    public function getShortName(): string
     {
-        return 'telescope.overview';
+        return 'overview';
     }
-    
-    public function getDescription(): string
-    {
-        return 'Get a comprehensive system overview with health status, performance metrics, and critical issues in under 2K tokens';
-    }
-    
-    public function getInputSchema(): array
+
+    public function getSchema(): array
     {
         return [
-            'type' => 'object',
-            'properties' => [
-                'period' => [
-                    'type' => 'string',
-                    'enum' => ['5m', '1h', '24h', '7d'],
-                    'description' => 'Time period for analysis',
-                    'default' => '1h',
+            'name' => $this->getName(),
+            'description' => 'Get a comprehensive system overview with health status, performance metrics, and critical issues in under 2K tokens',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'period' => [
+                        'type' => 'string',
+                        'enum' => ['5m', '1h', '24h', '7d'],
+                        'description' => 'Time period for analysis',
+                        'default' => '1h',
+                    ],
+                    'include_recommendations' => [
+                        'type' => 'boolean',
+                        'description' => 'Include optimization recommendations',
+                        'default' => true,
+                    ],
                 ],
-                'include_recommendations' => [
-                    'type' => 'boolean',
-                    'description' => 'Include optimization recommendations',
-                    'default' => true,
-                ],
+                'required' => [],
             ],
         ];
     }
-    
+
     public function execute(array $arguments = []): array
     {
         $cacheKey = $this->getCacheKey('overview', $arguments);
-        
+
         return $this->cache->remember($cacheKey, function () use ($arguments) {
             $period = $arguments['period'] ?? '1h';
             $includeRecommendations = $arguments['include_recommendations'] ?? true;
-            
+
             // Gather data from different entry types
             $requests = $this->normalizeEntries(iterator_to_array($this->storage->get('request', (new EntryQueryOptions())->limit(100))));
             $queries = $this->normalizeEntries(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
             $exceptions = $this->normalizeEntries(iterator_to_array($this->storage->get('exception', (new EntryQueryOptions())->limit(50))));
             $jobs = $this->normalizeEntries(iterator_to_array($this->storage->get('job', (new EntryQueryOptions())->limit(50))));
             $cache = $this->normalizeEntries(iterator_to_array($this->storage->get('cache', (new EntryQueryOptions())->limit(50))));
-            
+
             // Analyze performance
             $requestAnalysis = $this->performanceAnalyzer->analyzeRequests($requests);
             $queryAnalysis = $this->queryAnalyzer->calculateStats($queries);
             $bottlenecks = $this->performanceAnalyzer->identifyBottlenecks($requests, $queries);
-            
+
             // Build overview
             $overview = [
                 'health_status' => $this->calculateHealthStatus($requestAnalysis, $queryAnalysis, $exceptions),
@@ -82,7 +87,7 @@ class OverviewTool extends AbstractTool
                 'system_stats' => $this->getSystemStats($requests, $queries, $exceptions, $jobs, $cache),
                 'recent_errors' => $this->getRecentErrors($exceptions),
             ];
-            
+
             if ($includeRecommendations) {
                 $overview['recommendations'] = $this->generateRecommendations(
                     $requestAnalysis,
@@ -91,11 +96,11 @@ class OverviewTool extends AbstractTool
                     $exceptions
                 );
             }
-            
+
             return $this->formatter->format($overview, 'summary');
         }, $this->cache->getTtl('overview'));
     }
-    
+
     /**
      * Calculate overall health status.
      */
@@ -103,42 +108,42 @@ class OverviewTool extends AbstractTool
     {
         $score = 100;
         $issues = [];
-        
+
         // Check request performance
         if (($requestAnalysis['summary']['avg_duration'] ?? 0) > 1000) {
             $score -= 20;
             $issues[] = 'High average response time';
         }
-        
+
         // Check error rate
         $errorRate = $this->calculateErrorRate($requestAnalysis);
         if ($errorRate > 5) {
             $score -= 30;
-            $issues[] = 'High error rate (' . round($errorRate, 1) . '%)';
+            $issues[] = 'High error rate ('.round($errorRate, 1).'%)';
         } elseif ($errorRate > 1) {
             $score -= 10;
             $issues[] = 'Elevated error rate';
         }
-        
+
         // Check database performance
         if (($queryAnalysis['slow_query_count'] ?? 0) > 10) {
             $score -= 15;
             $issues[] = 'Multiple slow queries detected';
         }
-        
+
         // Check exceptions
         if (count($exceptions) > 10) {
             $score -= 15;
             $issues[] = 'High exception rate';
         }
-        
+
         return [
             'score' => max(0, $score),
             'status' => $this->getStatusLabel($score),
             'issues' => $issues,
         ];
     }
-    
+
     /**
      * Get performance metrics summary.
      */
@@ -161,7 +166,7 @@ class OverviewTool extends AbstractTool
             ],
         ];
     }
-    
+
     /**
      * Identify critical issues.
      */
@@ -172,7 +177,7 @@ class OverviewTool extends AbstractTool
         array $bottlenecks
     ): array {
         $issues = [];
-        
+
         // Check for bottlenecks
         foreach ($bottlenecks as $bottleneck) {
             if ($bottleneck['severity'] === 'high') {
@@ -184,18 +189,18 @@ class OverviewTool extends AbstractTool
                 ];
             }
         }
-        
+
         // Check for N+1 queries
         $nPlusOne = $this->queryAnalyzer->detectNPlusOne(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
-        if (!empty($nPlusOne)) {
+        if (! empty($nPlusOne)) {
             $issues[] = [
                 'type' => 'n_plus_one',
                 'severity' => 'high',
-                'message' => count($nPlusOne) . ' N+1 query patterns detected',
+                'message' => count($nPlusOne).' N+1 query patterns detected',
                 'action' => 'Use eager loading to reduce database queries',
             ];
         }
-        
+
         // Check for repeated exceptions
         $exceptionGroups = $this->groupExceptions($exceptions);
         foreach ($exceptionGroups as $class => $count) {
@@ -208,7 +213,7 @@ class OverviewTool extends AbstractTool
                 ];
             }
         }
-        
+
         // Check for slow endpoints
         foreach ($requestAnalysis['endpoints'] ?? [] as $endpoint => $stats) {
             if ($stats['avg_duration'] > 2000) {
@@ -220,10 +225,10 @@ class OverviewTool extends AbstractTool
                 ];
             }
         }
-        
+
         return array_slice($issues, 0, 5); // Limit to top 5 issues
     }
-    
+
     /**
      * Get system statistics.
      */
@@ -243,10 +248,10 @@ class OverviewTool extends AbstractTool
             'jobs_processed' => count($jobs),
             'cache_operations' => count($cache),
             'cache_hit_rate' => $this->calculateCacheHitRate($cache),
-            'failed_jobs' => count(array_filter($jobs, fn($j) => ($j['content']['status'] ?? '') === 'failed')),
+            'failed_jobs' => count(array_filter($jobs, fn ($j) => ($j['content']['status'] ?? '') === 'failed')),
         ];
     }
-    
+
     /**
      * Get recent errors summary.
      */
@@ -259,12 +264,12 @@ class OverviewTool extends AbstractTool
             return [
                 'class' => $exception['content']['class'] ?? 'Unknown',
                 'message' => substr($exception['content']['message'] ?? '', 0, 100),
-                'location' => $exception['content']['file'] ?? '' . ':' . $exception['content']['line'] ?? '',
+                'location' => $exception['content']['file'] ?? ''.':'.($exception['content']['line'] ?? ''),
                 'occurred_at' => $exception['created_at'] ?? '',
             ];
         }, $recentErrors);
     }
-    
+
     /**
      * Generate optimization recommendations.
      */
@@ -275,7 +280,7 @@ class OverviewTool extends AbstractTool
         array $exceptions
     ): array {
         $recommendations = [];
-        
+
         // Performance recommendations
         if (($requestAnalysis['summary']['avg_duration'] ?? 0) > 500) {
             $recommendations[] = [
@@ -284,7 +289,7 @@ class OverviewTool extends AbstractTool
                 'action' => 'Implement response caching for frequently accessed endpoints',
             ];
         }
-        
+
         // Database recommendations
         if (($queryAnalysis['slow_query_count'] ?? 0) > 5) {
             $recommendations[] = [
@@ -293,7 +298,7 @@ class OverviewTool extends AbstractTool
                 'action' => 'Add indexes to optimize slow queries',
             ];
         }
-        
+
         // Error handling recommendations
         if (count($exceptions) > 10) {
             $recommendations[] = [
@@ -302,7 +307,7 @@ class OverviewTool extends AbstractTool
                 'action' => 'Review and fix recurring exceptions',
             ];
         }
-        
+
         // Bottleneck recommendations
         foreach ($bottlenecks as $bottleneck) {
             if ($bottleneck['severity'] === 'high') {
@@ -313,44 +318,52 @@ class OverviewTool extends AbstractTool
                 ];
             }
         }
-        
+
         return array_slice($recommendations, 0, 5);
     }
-    
+
     /**
      * Helper methods
      */
-    
     protected function calculateErrorRate(array $requestAnalysis): float
     {
         $total = $requestAnalysis['summary']['total_requests'] ?? 0;
-        if ($total === 0) return 0;
-        
+        if ($total === 0) {
+            return 0;
+        }
+
         $errors = 0;
         foreach ($requestAnalysis['status_breakdown'] ?? [] as $status => $count) {
             if ($status >= 400) {
                 $errors += $count;
             }
         }
-        
+
         return ($errors / $total) * 100;
     }
-    
+
     protected function getStatusLabel(int $score): string
     {
-        if ($score >= 90) return 'healthy';
-        if ($score >= 70) return 'good';
-        if ($score >= 50) return 'warning';
+        if ($score >= 90) {
+            return 'healthy';
+        }
+        if ($score >= 70) {
+            return 'good';
+        }
+        if ($score >= 50) {
+            return 'warning';
+        }
+
         return 'critical';
     }
-    
+
     protected function calculateThroughput(array $requestAnalysis): string
     {
         $total = $requestAnalysis['summary']['total_requests'] ?? 0;
         // Assuming data is from last hour
-        return round($total / 60, 2) . ' req/min';
+        return round($total / 60, 2).' req/min';
     }
-    
+
     protected function groupExceptions(array $exceptions): array
     {
         // Entries are already normalized in execute() method
@@ -363,19 +376,23 @@ class OverviewTool extends AbstractTool
 
         return $groups;
     }
-    
+
     protected function calculateCacheHitRate(array $cacheEntries): string
     {
-        if (empty($cacheEntries)) return '0%';
-        
-        $hits = count(array_filter($cacheEntries, fn($c) => ($c['content']['type'] ?? '') === 'hit'));
+        if (empty($cacheEntries)) {
+            return '0%';
+        }
+
+        $hits = count(array_filter($cacheEntries, fn ($c) => ($c['content']['type'] ?? '') === 'hit'));
         $total = count($cacheEntries);
-        
-        if ($total === 0) return '0%';
-        
-        return round(($hits / $total) * 100, 1) . '%';
+
+        if ($total === 0) {
+            return '0%';
+        }
+
+        return round(($hits / $total) * 100, 1).'%';
     }
-    
+
     protected function getListFields(): array
     {
         return [];
@@ -384,38 +401,5 @@ class OverviewTool extends AbstractTool
     protected function getSearchableFields(): array
     {
         return [];
-    }
-
-    /**
-     * Normalize entry to array format.
-     */
-    protected function normalizeEntry($entry): array
-    {
-        if (is_array($entry)) {
-            return $entry;
-        }
-
-        // Handle EntryResult objects from Telescope
-        if (is_object($entry)) {
-            $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
-            $id = isset($entry->id) ? $entry->id : null;
-            $createdAt = isset($entry->created_at) ? $entry->created_at : null;
-
-            return [
-                'id' => $id,
-                'content' => $content,
-                'created_at' => $createdAt,
-            ];
-        }
-
-        return ['id' => null, 'content' => [], 'created_at' => null];
-    }
-
-    /**
-     * Normalize entries array.
-     */
-    protected function normalizeEntries(array $entries): array
-    {
-        return array_map(fn($e) => $this->normalizeEntry($e), $entries);
     }
 }

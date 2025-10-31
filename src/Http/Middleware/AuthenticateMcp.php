@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Http\Middleware;
+namespace Skylence\\TelescopeMcp\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

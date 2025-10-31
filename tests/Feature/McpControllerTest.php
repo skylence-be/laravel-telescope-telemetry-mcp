@@ -1,8 +1,8 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Tests\Feature;
+namespace Skylence\TelescopeMcp\Tests\Feature;
 
-use LaravelTelescope\Telemetry\Tests\TestCase;
+use Skylence\TelescopeMcp\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class McpControllerTest extends TestCase

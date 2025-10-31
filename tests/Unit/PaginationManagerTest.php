@@ -1,9 +1,9 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Tests\Unit;
+namespace Skylence\TelescopeMcp\Tests\Unit;
 
-use LaravelTelescope\Telemetry\Tests\TestCase;
-use LaravelTelescope\Telemetry\Services\PaginationManager;
+use Skylence\TelescopeMcp\Tests\TestCase;
+use Skylence\TelescopeMcp\Services\PaginationManager;
 
 class PaginationManagerTest extends TestCase
 {

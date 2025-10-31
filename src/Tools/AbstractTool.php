@@ -1,14 +1,16 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Tools;
+declare(strict_types=1);
 
-use LaravelTelescope\Telemetry\Contracts\ToolInterface;
-use LaravelTelescope\Telemetry\Services\PaginationManager;
-use LaravelTelescope\Telemetry\Services\ResponseFormatter;
-use LaravelTelescope\Telemetry\Services\CacheManager;
+namespace Skylence\TelescopeMcp\Tools;
+
+use Illuminate\Support\Facades\App;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use Illuminate\Support\Facades\App;
+use Skylence\TelescopeMcp\Contracts\ToolInterface;
+use Skylence\TelescopeMcp\Services\CacheManager;
+use Skylence\TelescopeMcp\Services\PaginationManager;
+use Skylence\TelescopeMcp\Services\ResponseFormatter;
 
 abstract class AbstractTool implements ToolInterface
 {
@@ -17,12 +19,12 @@ abstract class AbstractTool implements ToolInterface
     protected ResponseFormatter $formatter;
     protected CacheManager $cache;
     protected EntriesRepository $storage;
-    
+
     /**
      * The Telescope entry type this tool handles.
      */
     protected string $entryType = '';
-    
+
     public function __construct(
         array $config,
         PaginationManager $pagination,
@@ -35,14 +37,34 @@ abstract class AbstractTool implements ToolInterface
         $this->cache = $cache;
         $this->storage = App::make(EntriesRepository::class);
     }
-    
+
+    /**
+     * Get the tool's short name (used as identifier).
+     */
+    abstract public function getShortName(): string;
+
+    /**
+     * Get the tool's full name.
+     */
+    public function getName(): string
+    {
+        return 'mcp__telescope-mcp__'.$this->getShortName();
+    }
+
+    /**
+     * Get the tool's schema definition.
+     *
+     * @return array{name: string, description: string, inputSchema: array}
+     */
+    abstract public function getSchema(): array;
+
     /**
      * Execute the tool with given arguments.
      */
     public function execute(array $arguments = []): array
     {
         $action = $arguments['action'] ?? 'list';
-        
+
         return match ($action) {
             'summary' => $this->summary($arguments),
             'list' => $this->list($arguments),
@@ -52,14 +74,14 @@ abstract class AbstractTool implements ToolInterface
             default => $this->list($arguments),
         };
     }
-    
+
     /**
      * Get summary view of the data.
      */
     public function summary(array $arguments = []): array
     {
         $cacheKey = $this->getCacheKey('summary', $arguments);
-        
+
         return $this->cache->remember($cacheKey, function () use ($arguments) {
             $entries = $this->normalizeEntries($this->getEntries($arguments));
 
@@ -71,7 +93,7 @@ abstract class AbstractTool implements ToolInterface
             ]);
         });
     }
-    
+
     /**
      * Get list view of the data.
      */
@@ -79,9 +101,9 @@ abstract class AbstractTool implements ToolInterface
     {
         $limit = $this->pagination->getLimit($arguments['limit'] ?? null);
         $offset = $arguments['offset'] ?? 0;
-        
+
         $cacheKey = $this->getCacheKey('list', $arguments);
-        
+
         return $this->cache->remember($cacheKey, function () use ($limit, $offset, $arguments) {
             $entries = $this->normalizeEntries($this->getEntries($arguments));
             $paginatedEntries = array_slice($entries, $offset, $limit);
@@ -99,35 +121,35 @@ abstract class AbstractTool implements ToolInterface
             );
         });
     }
-    
+
     /**
      * Get detailed view of a single item.
      */
     public function detail(string $id, array $arguments = []): array
     {
         $cacheKey = $this->getCacheKey('detail', ['id' => $id]);
-        
+
         return $this->cache->remember($cacheKey, function () use ($id) {
             $entry = $this->storage->find($id);
-            
-            if (!$entry) {
+
+            if (! $entry) {
                 return [
                     'error' => 'Entry not found',
                     'id' => $id,
                 ];
             }
-            
+
             return $this->formatter->formatDetail($entry->toArray());
         });
     }
-    
+
     /**
      * Get statistics about the data.
      */
     public function stats(array $arguments = []): array
     {
         $cacheKey = $this->getCacheKey('stats', $arguments);
-        
+
         return $this->cache->remember($cacheKey, function () use ($arguments) {
             $entries = $this->normalizeEntries($this->getEntries($arguments));
 
@@ -136,7 +158,7 @@ abstract class AbstractTool implements ToolInterface
             );
         });
     }
-    
+
     /**
      * Search entries.
      */
@@ -145,9 +167,9 @@ abstract class AbstractTool implements ToolInterface
         $query = $arguments['query'] ?? '';
         $filters = $arguments['filters'] ?? [];
         $limit = $this->pagination->getLimit($arguments['limit'] ?? null);
-        
+
         $entries = $this->searchEntries($query, $filters);
-        
+
         return $this->pagination->paginate(
             $this->formatter->formatList($entries, $this->getListFields()),
             count($entries),
@@ -155,7 +177,7 @@ abstract class AbstractTool implements ToolInterface
             0
         );
     }
-    
+
     /**
      * Get entries from storage.
      */
@@ -181,24 +203,25 @@ abstract class AbstractTool implements ToolInterface
             $queryOptions
         ));
     }
-    
+
     /**
      * Search entries with query and filters.
      */
     protected function searchEntries(string $query, array $filters): array
     {
         $entries = $this->getEntries($filters);
-        
+
         if (empty($query)) {
             return $entries;
         }
-        
+
         return array_filter($entries, function ($entry) use ($query) {
             $searchableContent = $this->getSearchableContent($entry);
+
             return stripos($searchableContent, $query) !== false;
         });
     }
-    
+
     /**
      * Get searchable content from an entry.
      */
@@ -206,17 +229,17 @@ abstract class AbstractTool implements ToolInterface
     {
         $fields = $this->getSearchableFields();
         $content = [];
-        
+
         foreach ($fields as $field) {
             if (isset($entry['content'][$field])) {
                 $value = $entry['content'][$field];
                 $content[] = is_array($value) ? json_encode($value) : (string) $value;
             }
         }
-        
+
         return implode(' ', $content);
     }
-    
+
     /**
      * Calculate statistics for entries.
      */
@@ -230,11 +253,11 @@ abstract class AbstractTool implements ToolInterface
                 'max_duration' => 0,
             ];
         }
-        
+
         $durations = array_map(function ($entry) {
             return $entry['content']['duration'] ?? 0;
         }, $entries);
-        
+
         return [
             'count' => count($entries),
             'avg_duration' => array_sum($durations) / count($durations),
@@ -245,7 +268,7 @@ abstract class AbstractTool implements ToolInterface
             'p99' => $this->percentile($durations, 99),
         ];
     }
-    
+
     /**
      * Calculate percentile value.
      */
@@ -254,13 +277,13 @@ abstract class AbstractTool implements ToolInterface
         if (empty($values)) {
             return 0;
         }
-        
+
         sort($values);
         $index = ceil(($percentile / 100) * count($values)) - 1;
-        
+
         return $values[$index] ?? 0;
     }
-    
+
     /**
      * Get cache key for the operation.
      */
@@ -272,10 +295,10 @@ abstract class AbstractTool implements ToolInterface
             $operation,
             md5(json_encode($arguments))
         );
-        
+
         return $key;
     }
-    
+
     /**
      * Get fields to include in list view.
      */
@@ -289,7 +312,7 @@ abstract class AbstractTool implements ToolInterface
     /**
      * Normalize entry to array format.
      */
-    protected function normalizeEntry($entry): array
+    protected function normalizeEntry(mixed $entry): array
     {
         if (is_array($entry)) {
             return $entry;
@@ -298,8 +321,8 @@ abstract class AbstractTool implements ToolInterface
         // Handle EntryResult objects from Telescope
         if (is_object($entry)) {
             $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
-            $id = isset($entry->id) ? $entry->id : null;
-            $createdAt = isset($entry->created_at) ? $entry->created_at : null;
+            $id = $entry->id ?? null;
+            $createdAt = $entry->created_at ?? null;
 
             return [
                 'id' => $id,
@@ -316,6 +339,43 @@ abstract class AbstractTool implements ToolInterface
      */
     protected function normalizeEntries(array $entries): array
     {
-        return array_map(fn($e) => $this->normalizeEntry($e), $entries);
+        return array_map(fn ($e) => $this->normalizeEntry($e), $entries);
+    }
+
+    /**
+     * Format a successful response.
+     */
+    protected function formatResponse(string $text, mixed $data = null): array
+    {
+        $response = [
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => $text,
+                ],
+            ],
+        ];
+
+        if ($data !== null) {
+            $response['data'] = $data;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Format an error response.
+     */
+    protected function formatError(string $message): array
+    {
+        return [
+            'content' => [
+                [
+                    'type' => 'text',
+                    'text' => "Error: {$message}",
+                ],
+            ],
+            'isError' => true,
+        ];
     }
 }

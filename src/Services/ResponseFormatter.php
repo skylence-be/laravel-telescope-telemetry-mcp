@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelTelescope\Telemetry\Services;
+namespace Skylence\\TelescopeMcp\Services;
 
 class ResponseFormatter
 {

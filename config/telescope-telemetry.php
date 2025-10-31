@@ -14,7 +14,7 @@ return [
     'mcp' => [
         'enabled' => env('TELESCOPE_TELEMETRY_ENABLED', true),
         'path' => env('TELESCOPE_TELEMETRY_PATH', 'telescope-mcp'),
-        'middleware' => ['api'],
+        'middleware' => [],
 
         /*
         |--------------------------------------------------------------------------

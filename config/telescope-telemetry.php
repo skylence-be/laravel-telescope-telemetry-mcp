@@ -100,12 +100,13 @@ return [
         | Authentication & Authorization
         |--------------------------------------------------------------------------
         |
-        | Configure access control for the telemetry endpoints
+        | Configure access control for the telemetry endpoints.
+        | When enabled, the 'telescope.mcp.auth' middleware will be automatically
+        | added to the route group.
         |
         */
         'auth' => [
             'enabled' => env('TELESCOPE_TELEMETRY_AUTH_ENABLED', true),
-            'middleware' => ['api'],
             'rate_limit' => env('TELESCOPE_TELEMETRY_RATE_LIMIT', '60,1'),
         ],
         

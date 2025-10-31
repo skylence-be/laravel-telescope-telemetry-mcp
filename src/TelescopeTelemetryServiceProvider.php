@@ -168,9 +168,16 @@ final class TelescopeTelemetryServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
+        $middleware = config('telescope-telemetry.mcp.middleware', ['api']);
+
+        // Add authentication middleware if enabled
+        if (config('telescope-telemetry.mcp.auth.enabled', true)) {
+            $middleware[] = 'telescope.mcp.auth';
+        }
+
         Route::group([
             'prefix' => config('telescope-telemetry.mcp.path', 'telescope-mcp'),
-            'middleware' => config('telescope-telemetry.mcp.middleware', ['api']),
+            'middleware' => $middleware,
         ], function () {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
         });

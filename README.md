@@ -29,6 +29,33 @@ Publish the configuration file:
 php artisan vendor:publish --tag=telescope-telemetry-config
 ```
 
+### Environment Variables
+
+Add to your `.env` file:
+
+```env
+# Enable/disable the MCP server
+TELESCOPE_TELEMETRY_ENABLED=true
+
+# API endpoint path
+TELESCOPE_TELEMETRY_PATH=telescope-mcp
+
+# Authentication (highly recommended for production)
+TELESCOPE_TELEMETRY_AUTH_ENABLED=true
+TELESCOPE_TELEMETRY_API_TOKEN=your-secure-random-token
+
+# Rate limiting
+TELESCOPE_TELEMETRY_RATE_LIMIT=60,1
+
+# Response optimization
+TELESCOPE_TELEMETRY_MODE=auto
+TELESCOPE_TELEMETRY_MAX_SIZE_KB=100
+
+# Performance thresholds
+TELESCOPE_TELEMETRY_SLOW_QUERY_MS=100
+TELESCOPE_TELEMETRY_SLOW_REQUEST_MS=1000
+```
+
 ### Basic Configuration
 
 ```php
@@ -37,14 +64,21 @@ php artisan vendor:publish --tag=telescope-telemetry-config
 return [
     'mcp' => [
         'enabled' => true,
-        'path' => 'telescope-telemetry',
-        
+        'path' => 'telescope-mcp',
+        'middleware' => ['api'], // Base middleware
+
+        // Authentication is automatically applied when enabled
+        'auth' => [
+            'enabled' => env('TELESCOPE_TELEMETRY_AUTH_ENABLED', true),
+            'rate_limit' => env('TELESCOPE_TELEMETRY_RATE_LIMIT', '60,1'),
+        ],
+
         'limits' => [
             'default' => 10,    // Default entries per request
             'maximum' => 25,    // Hard limit
             'summary_threshold' => 5, // Switch to summary mode above this
         ],
-        
+
         'response' => [
             'mode' => 'auto',   // auto, summary, standard, detailed
             'compression' => true,
@@ -58,7 +92,7 @@ return [
 
 ### Claude Desktop
 
-Add to your Claude configuration:
+Add to your Claude configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -68,12 +102,17 @@ Add to your Claude configuration:
       "args": [
         "-y",
         "mcp-remote",
-        "http://127.0.0.1:8000/telescope-telemetry"
-      ]
+        "http://127.0.0.1:8000/telescope-mcp"
+      ],
+      "env": {
+        "MCP_TOKEN": "your-secure-random-token"
+      }
     }
   }
 }
 ```
+
+**Note**: The token will be sent as `Authorization: Bearer <token>` header automatically by mcp-remote.
 
 ### Cursor / VS Code
 
@@ -81,12 +120,24 @@ Add to your Claude configuration:
 {
   "mcp.servers": {
     "telescope": {
-      "url": "http://127.0.0.1:8000/telescope-telemetry",
-      "token": "your-api-token"
+      "url": "http://127.0.0.1:8000/telescope-mcp",
+      "headers": {
+        "X-MCP-Token": "your-secure-random-token"
+      }
     }
   }
 }
 ```
+
+### Testing Without Authentication
+
+For local development, you can disable authentication:
+
+```env
+TELESCOPE_TELEMETRY_AUTH_ENABLED=false
+```
+
+⚠️ **Warning**: Never disable authentication in production environments!
 
 ## 📊 Available Tools
 
@@ -199,10 +250,38 @@ Mode::DETAILED   // < 10K tokens - full data
 
 ## 🔒 Security
 
-- API token authentication support
-- Rate limiting per endpoint
-- Configurable middleware stack
-- Environment-based access control
+### Authentication
+
+The package includes built-in token authentication to protect your telemetry endpoints:
+
+**How it works:**
+1. Set `TELESCOPE_TELEMETRY_AUTH_ENABLED=true` (enabled by default)
+2. Configure `TELESCOPE_TELEMETRY_API_TOKEN` in your `.env` file
+3. The middleware automatically validates tokens via:
+   - `X-MCP-Token` header, or
+   - `Authorization: Bearer <token>` header
+
+**Token validation:**
+```php
+// The middleware checks the token against your environment variable
+if (hash_equals(env('TELESCOPE_TELEMETRY_API_TOKEN'), $providedToken)) {
+    // Access granted
+}
+```
+
+**Generate a secure token:**
+```bash
+php -r "echo bin2hex(random_bytes(32));"
+```
+
+### Additional Security Features
+
+- **Rate limiting**: Configurable per-endpoint rate limits (default: 60 requests/minute)
+- **Middleware stack**: Fully configurable middleware for custom security layers
+- **Environment-based access control**: Different settings per environment
+- **JSON-RPC error responses**: Standard error codes for authentication failures
+  - `-32001`: Authentication required (no token provided)
+  - `-32002`: Invalid authentication token
 
 ## 🧪 Testing
 

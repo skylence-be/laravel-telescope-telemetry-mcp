@@ -1,6 +1,6 @@
 <?php
 
-namespace Skylence\\TelescopeMcp\Services;
+namespace Skylence\TelescopeMcp\Services;
 
 use Illuminate\Contracts\Cache\Repository;
 

@@ -1,13 +1,13 @@
 <?php
 
-namespace Skylence\\TelescopeMcp\Http\Controllers;
+namespace Skylence\TelescopeMcp\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Skylence\\TelescopeMcp\Tools\OverviewTool;
-use Skylence\\TelescopeMcp\Services\PerformanceAnalyzer;
-use Skylence\\TelescopeMcp\Services\ResponseFormatter;
+use Skylence\TelescopeMcp\Tools\OverviewTool;
+use Skylence\TelescopeMcp\Services\PerformanceAnalyzer;
+use Skylence\TelescopeMcp\Services\ResponseFormatter;
 use Laravel\Telescope\Contracts\EntriesRepository;
 
 class OverviewController extends Controller

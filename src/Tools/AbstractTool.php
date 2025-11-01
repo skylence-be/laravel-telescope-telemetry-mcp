@@ -233,6 +233,9 @@ abstract class AbstractTool implements ToolInterface
             '6h' => $now - (6 * 60 * 60),
             '24h' => $now - (24 * 60 * 60),
             '7d' => $now - (7 * 24 * 60 * 60),
+            '14d' => $now - (14 * 24 * 60 * 60),
+            '21d' => $now - (21 * 24 * 60 * 60),
+            '30d' => $now - (30 * 24 * 60 * 60),
             default => $now - (60 * 60), // Default to 1 hour
         };
     }

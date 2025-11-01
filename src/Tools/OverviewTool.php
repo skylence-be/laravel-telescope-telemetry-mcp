@@ -44,7 +44,7 @@ final class OverviewTool extends AbstractTool
                 'properties' => [
                     'period' => [
                         'type' => 'string',
-                        'enum' => ['5m', '1h', '24h', '7d'],
+                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d', '14d', '21d', '30d'],
                         'description' => 'Time period for analysis',
                         'default' => '1h',
                     ],

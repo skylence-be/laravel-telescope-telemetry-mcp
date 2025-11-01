@@ -45,7 +45,7 @@ final class QueriesTool extends AbstractTool
                     ],
                     'period' => [
                         'type' => 'string',
-                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d'],
+                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d', '14d', '21d', '30d'],
                         'description' => 'Time period for analysis (overrides config default)',
                         'default' => '1h',
                     ],

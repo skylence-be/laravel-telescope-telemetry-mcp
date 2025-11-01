@@ -70,29 +70,8 @@ return [
         'analysis' => [
             'slow_query_ms' => env('TELESCOPE_TELEMETRY_SLOW_QUERY_MS', 100),
             'n_plus_one_threshold' => env('TELESCOPE_TELEMETRY_N_PLUS_ONE_THRESHOLD', 3),
-            'cache_ttl' => env('TELESCOPE_TELEMETRY_CACHE_TTL', 300),
             'slow_request_ms' => env('TELESCOPE_TELEMETRY_SLOW_REQUEST_MS', 1000),
             'high_memory_mb' => env('TELESCOPE_TELEMETRY_HIGH_MEMORY_MB', 50),
-        ],
-        
-        /*
-        |--------------------------------------------------------------------------
-        | Caching Configuration
-        |--------------------------------------------------------------------------
-        |
-        | Configure caching for frequently accessed data
-        |
-        */
-        'cache' => [
-            'enabled' => env('TELESCOPE_TELEMETRY_CACHE_ENABLED', true),
-            'driver' => env('TELESCOPE_TELEMETRY_CACHE_DRIVER', 'redis'),
-            'prefix' => env('TELESCOPE_TELEMETRY_CACHE_PREFIX', 'telescope_telemetry'),
-            'ttl' => [
-                'overview' => 60,
-                'statistics' => 300,
-                'analysis' => 120,
-                'list' => 30,
-            ],
         ],
         
         /*

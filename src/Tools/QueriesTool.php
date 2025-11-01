@@ -98,19 +98,15 @@ final class QueriesTool extends AbstractTool
      */
     protected function getSlowQueries(array $arguments): array
     {
-        $cacheKey = $this->getCacheKey('slow_queries', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $slowQueries = $this->queryAnalyzer->identifySlowQueries($entries);
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $slowQueries = $this->queryAnalyzer->identifySlowQueries($entries);
-
-            return $this->formatter->format([
-                'slow_queries' => $slowQueries,
-                'threshold_ms' => $arguments['slow_threshold'] ?? $this->config['slow_query_ms'] ?? 100,
-                'total_found' => count($slowQueries),
-                'optimization_tips' => $this->getOptimizationTips($slowQueries),
-            ], 'standard');
-        });
+        return $this->formatter->format([
+            'slow_queries' => $slowQueries,
+            'threshold_ms' => $arguments['slow_threshold'] ?? $this->config['slow_query_ms'] ?? 100,
+            'total_found' => count($slowQueries),
+            'optimization_tips' => $this->getOptimizationTips($slowQueries),
+        ], 'standard');
     }
 
     /**
@@ -118,19 +114,15 @@ final class QueriesTool extends AbstractTool
      */
     protected function getDuplicateQueries(array $arguments): array
     {
-        $cacheKey = $this->getCacheKey('duplicate_queries', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $duplicates = $this->queryAnalyzer->findDuplicates($entries);
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $duplicates = $this->queryAnalyzer->findDuplicates($entries);
-
-            return $this->formatter->format([
-                'duplicate_queries' => $duplicates,
-                'total_duplicates' => count($duplicates),
-                'wasted_time_ms' => array_sum(array_column($duplicates, 'wasted_time')),
-                'recommendations' => $this->getDuplicateRecommendations($duplicates),
-            ], 'standard');
-        });
+        return $this->formatter->format([
+            'duplicate_queries' => $duplicates,
+            'total_duplicates' => count($duplicates),
+            'wasted_time_ms' => array_sum(array_column($duplicates, 'wasted_time')),
+            'recommendations' => $this->getDuplicateRecommendations($duplicates),
+        ], 'standard');
     }
 
     /**
@@ -138,19 +130,15 @@ final class QueriesTool extends AbstractTool
      */
     protected function getNPlusOneQueries(array $arguments): array
     {
-        $cacheKey = $this->getCacheKey('n_plus_one', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $nPlusOne = $this->queryAnalyzer->detectNPlusOne($entries);
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $nPlusOne = $this->queryAnalyzer->detectNPlusOne($entries);
-
-            return $this->formatter->format([
-                'n_plus_one_queries' => $nPlusOne,
-                'total_patterns' => count($nPlusOne),
-                'potential_reduction' => $this->calculatePotentialReduction($nPlusOne),
-                'fixes' => $this->generateNPlusOneFixes($nPlusOne),
-            ], 'standard');
-        });
+        return $this->formatter->format([
+            'n_plus_one_queries' => $nPlusOne,
+            'total_patterns' => count($nPlusOne),
+            'potential_reduction' => $this->calculatePotentialReduction($nPlusOne),
+            'fixes' => $this->generateNPlusOneFixes($nPlusOne),
+        ], 'standard');
     }
 
     /**
@@ -158,53 +146,49 @@ final class QueriesTool extends AbstractTool
      */
     public function summary(array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('summary', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $stats = $this->queryAnalyzer->calculateStats($entries);
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $stats = $this->queryAnalyzer->calculateStats($entries);
+        $summary = [
+            'total_queries' => $stats['total_queries'],
+            'total_time_ms' => round($stats['total_time'], 2),
+            'avg_time_ms' => round($stats['avg_time'], 2),
+            'slow_queries' => $stats['slow_query_count'],
+            'query_types' => $stats['by_type'],
+            'issues' => [],
+        ];
 
-            $summary = [
-                'total_queries' => $stats['total_queries'],
-                'total_time_ms' => round($stats['total_time'], 2),
-                'avg_time_ms' => round($stats['avg_time'], 2),
-                'slow_queries' => $stats['slow_query_count'],
-                'query_types' => $stats['by_type'],
-                'issues' => [],
+        // Check for issues
+        if ($stats['slow_query_count'] > 0) {
+            $summary['issues'][] = [
+                'type' => 'slow_queries',
+                'severity' => 'warning',
+                'count' => $stats['slow_query_count'],
+                'message' => "{$stats['slow_query_count']} slow queries detected",
             ];
+        }
 
-            // Check for issues
-            if ($stats['slow_query_count'] > 0) {
-                $summary['issues'][] = [
-                    'type' => 'slow_queries',
-                    'severity' => 'warning',
-                    'count' => $stats['slow_query_count'],
-                    'message' => "{$stats['slow_query_count']} slow queries detected",
-                ];
-            }
+        $duplicates = $this->queryAnalyzer->findDuplicates($entries);
+        if (! empty($duplicates)) {
+            $summary['issues'][] = [
+                'type' => 'duplicates',
+                'severity' => 'info',
+                'count' => count($duplicates),
+                'message' => count($duplicates).' duplicate query patterns found',
+            ];
+        }
 
-            $duplicates = $this->queryAnalyzer->findDuplicates($entries);
-            if (! empty($duplicates)) {
-                $summary['issues'][] = [
-                    'type' => 'duplicates',
-                    'severity' => 'info',
-                    'count' => count($duplicates),
-                    'message' => count($duplicates).' duplicate query patterns found',
-                ];
-            }
+        $nPlusOne = $this->queryAnalyzer->detectNPlusOne($entries);
+        if (! empty($nPlusOne)) {
+            $summary['issues'][] = [
+                'type' => 'n_plus_one',
+                'severity' => 'error',
+                'count' => count($nPlusOne),
+                'message' => count($nPlusOne).' N+1 query patterns detected',
+            ];
+        }
 
-            $nPlusOne = $this->queryAnalyzer->detectNPlusOne($entries);
-            if (! empty($nPlusOne)) {
-                $summary['issues'][] = [
-                    'type' => 'n_plus_one',
-                    'severity' => 'error',
-                    'count' => count($nPlusOne),
-                    'message' => count($nPlusOne).' N+1 query patterns detected',
-                ];
-            }
-
-            return $this->formatter->formatSummary($summary);
-        });
+        return $this->formatter->formatSummary($summary);
     }
 
     /**
@@ -212,21 +196,17 @@ final class QueriesTool extends AbstractTool
      */
     public function stats(array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('stats', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $stats = $this->queryAnalyzer->calculateStats($entries);
+        $patterns = $this->queryAnalyzer->analyzePatterns($entries);
+        $suggestions = $this->queryAnalyzer->suggestOptimizations($entries);
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $stats = $this->queryAnalyzer->calculateStats($entries);
-            $patterns = $this->queryAnalyzer->analyzePatterns($entries);
-            $suggestions = $this->queryAnalyzer->suggestOptimizations($entries);
-
-            return $this->formatter->formatStats([
-                'metrics' => $stats,
-                'patterns' => $patterns,
-                'optimizations' => $suggestions,
-                'performance_score' => $this->calculateQueryPerformanceScore($stats),
-            ]);
-        });
+        return $this->formatter->formatStats([
+            'metrics' => $stats,
+            'patterns' => $patterns,
+            'optimizations' => $suggestions,
+            'performance_score' => $this->calculateQueryPerformanceScore($stats),
+        ]);
     }
 
     /**

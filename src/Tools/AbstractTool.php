@@ -80,18 +80,14 @@ abstract class AbstractTool implements ToolInterface
      */
     public function summary(array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('summary', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-
-            return $this->formatter->formatSummary([
-                'total' => count($entries),
-                'type' => $this->entryType,
-                'period' => $arguments['period'] ?? '5m',
-                'stats' => $this->calculateStats($entries),
-            ]);
-        });
+        return $this->formatter->formatSummary([
+            'total' => count($entries),
+            'type' => $this->entryType,
+            'period' => $arguments['period'] ?? '5m',
+            'stats' => $this->calculateStats($entries),
+        ]);
     }
 
     /**
@@ -102,24 +98,20 @@ abstract class AbstractTool implements ToolInterface
         $limit = $this->pagination->getLimit($arguments['limit'] ?? null);
         $offset = $arguments['offset'] ?? 0;
 
-        $cacheKey = $this->getCacheKey('list', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
+        $paginatedEntries = array_slice($entries, $offset, $limit);
 
-        return $this->cache->remember($cacheKey, function () use ($limit, $offset, $arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-            $paginatedEntries = array_slice($entries, $offset, $limit);
+        $formatted = $this->formatter->formatList(
+            $paginatedEntries,
+            $this->getListFields()
+        );
 
-            $formatted = $this->formatter->formatList(
-                $paginatedEntries,
-                $this->getListFields()
-            );
-
-            return $this->pagination->paginate(
-                $formatted,
-                count($entries),
-                $limit,
-                $offset
-            );
-        });
+        return $this->pagination->paginate(
+            $formatted,
+            count($entries),
+            $limit,
+            $offset
+        );
     }
 
     /**
@@ -127,20 +119,16 @@ abstract class AbstractTool implements ToolInterface
      */
     public function detail(string $id, array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('detail', ['id' => $id]);
+        $entry = $this->storage->find($id);
 
-        return $this->cache->remember($cacheKey, function () use ($id) {
-            $entry = $this->storage->find($id);
+        if (! $entry) {
+            return [
+                'error' => 'Entry not found',
+                'id' => $id,
+            ];
+        }
 
-            if (! $entry) {
-                return [
-                    'error' => 'Entry not found',
-                    'id' => $id,
-                ];
-            }
-
-            return $this->formatter->formatDetail($entry->toArray());
-        });
+        return $this->formatter->formatDetail($entry->toArray());
     }
 
     /**
@@ -148,15 +136,11 @@ abstract class AbstractTool implements ToolInterface
      */
     public function stats(array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('stats', $arguments);
+        $entries = $this->normalizeEntries($this->getEntries($arguments));
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $entries = $this->normalizeEntries($this->getEntries($arguments));
-
-            return $this->formatter->formatStats(
-                $this->calculateStats($entries)
-            );
-        });
+        return $this->formatter->formatStats(
+            $this->calculateStats($entries)
+        );
     }
 
     /**

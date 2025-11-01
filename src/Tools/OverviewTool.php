@@ -61,66 +61,62 @@ final class OverviewTool extends AbstractTool
 
     public function execute(array $arguments = []): array
     {
-        $cacheKey = $this->getCacheKey('overview', $arguments);
+        $period = $arguments['period'] ?? '1h';
+        $includeRecommendations = $arguments['include_recommendations'] ?? true;
 
-        return $this->cache->remember($cacheKey, function () use ($arguments) {
-            $period = $arguments['period'] ?? '1h';
-            $includeRecommendations = $arguments['include_recommendations'] ?? true;
+        // Store original entry type and restore it after gathering data
+        $originalEntryType = $this->entryType;
 
-            // Store original entry type and restore it after gathering data
-            $originalEntryType = $this->entryType;
+        // Gather data from different entry types using getEntries to apply period filtering
+        $this->entryType = 'request';
+        $requests = $this->getEntries($arguments);
 
-            // Gather data from different entry types using getEntries to apply period filtering
-            $this->entryType = 'request';
-            $requests = $this->getEntries($arguments);
+        $this->entryType = 'query';
+        $queries = $this->getEntries($arguments);
 
-            $this->entryType = 'query';
-            $queries = $this->getEntries($arguments);
+        $this->entryType = 'exception';
+        $exceptions = $this->getEntries($arguments);
 
-            $this->entryType = 'exception';
-            $exceptions = $this->getEntries($arguments);
+        $this->entryType = 'job';
+        $jobs = $this->getEntries($arguments);
 
-            $this->entryType = 'job';
-            $jobs = $this->getEntries($arguments);
+        $this->entryType = 'cache';
+        $cache = $this->getEntries($arguments);
 
-            $this->entryType = 'cache';
-            $cache = $this->getEntries($arguments);
+        // Restore original entry type
+        $this->entryType = $originalEntryType;
 
-            // Restore original entry type
-            $this->entryType = $originalEntryType;
+        // Normalize all entries
+        $requests = $this->normalizeEntries($requests);
+        $queries = $this->normalizeEntries($queries);
+        $exceptions = $this->normalizeEntries($exceptions);
+        $jobs = $this->normalizeEntries($jobs);
+        $cache = $this->normalizeEntries($cache);
 
-            // Normalize all entries
-            $requests = $this->normalizeEntries($requests);
-            $queries = $this->normalizeEntries($queries);
-            $exceptions = $this->normalizeEntries($exceptions);
-            $jobs = $this->normalizeEntries($jobs);
-            $cache = $this->normalizeEntries($cache);
+        // Analyze performance
+        $requestAnalysis = $this->performanceAnalyzer->analyzeRequests($requests);
+        $queryAnalysis = $this->queryAnalyzer->calculateStats($queries);
+        $bottlenecks = $this->performanceAnalyzer->identifyBottlenecks($requests, $queries);
 
-            // Analyze performance
-            $requestAnalysis = $this->performanceAnalyzer->analyzeRequests($requests);
-            $queryAnalysis = $this->queryAnalyzer->calculateStats($queries);
-            $bottlenecks = $this->performanceAnalyzer->identifyBottlenecks($requests, $queries);
+        // Build overview
+        $overview = [
+            'health_status' => $this->calculateHealthStatus($requestAnalysis, $queryAnalysis, $exceptions),
+            'performance_metrics' => $this->getPerformanceMetrics($requestAnalysis, $queryAnalysis),
+            'critical_issues' => $this->identifyCriticalIssues($requestAnalysis, $queryAnalysis, $exceptions, $bottlenecks, $queries),
+            'system_stats' => $this->getSystemStats($requests, $queries, $exceptions, $jobs, $cache),
+            'recent_errors' => $this->getRecentErrors($exceptions),
+        ];
 
-            // Build overview
-            $overview = [
-                'health_status' => $this->calculateHealthStatus($requestAnalysis, $queryAnalysis, $exceptions),
-                'performance_metrics' => $this->getPerformanceMetrics($requestAnalysis, $queryAnalysis),
-                'critical_issues' => $this->identifyCriticalIssues($requestAnalysis, $queryAnalysis, $exceptions, $bottlenecks, $queries),
-                'system_stats' => $this->getSystemStats($requests, $queries, $exceptions, $jobs, $cache),
-                'recent_errors' => $this->getRecentErrors($exceptions),
-            ];
+        if ($includeRecommendations) {
+            $overview['recommendations'] = $this->generateRecommendations(
+                $requestAnalysis,
+                $queryAnalysis,
+                $bottlenecks,
+                $exceptions
+            );
+        }
 
-            if ($includeRecommendations) {
-                $overview['recommendations'] = $this->generateRecommendations(
-                    $requestAnalysis,
-                    $queryAnalysis,
-                    $bottlenecks,
-                    $exceptions
-                );
-            }
-
-            return $this->formatter->format($overview, 'summary');
-        }, $this->cache->getTtl('overview'));
+        return $this->formatter->format($overview, 'summary');
     }
 
     /**

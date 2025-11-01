@@ -50,15 +50,14 @@ class AuthenticateMcp
      */
     protected function isValidToken(string $token): bool
     {
-        // In production, validate against database or external service
-        // For now, check against environment variable
-        $validToken = env('TELESCOPE_TELEMETRY_API_TOKEN');
-        
+        // Get token from config (not env) to ensure it works with config caching
+        $validToken = config('telescope-telemetry.mcp.auth.token');
+
         if (!$validToken) {
-            // If no token is configured, allow access (development mode)
-            return true;
+            // If no token is configured and auth is enabled, deny access for security
+            return false;
         }
-        
+
         return hash_equals($validToken, $token);
     }
 }

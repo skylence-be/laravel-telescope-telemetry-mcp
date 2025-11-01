@@ -8,7 +8,7 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
-    public const VERSION = '1.3.1'; // Fixed lazy loading of tools to resolve race condition
+    public const VERSION = '1.3.2'; // Fixed authentication to work with config caching
 
     /**
      * Registered tools.

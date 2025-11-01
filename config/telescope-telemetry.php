@@ -86,6 +86,7 @@ return [
         */
         'auth' => [
             'enabled' => env('TELESCOPE_TELEMETRY_AUTH_ENABLED', true),
+            'token' => env('TELESCOPE_TELEMETRY_API_TOKEN'),
             'rate_limit' => env('TELESCOPE_TELEMETRY_RATE_LIMIT', '60,1'),
         ],
         

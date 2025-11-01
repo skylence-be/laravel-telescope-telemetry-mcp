@@ -156,6 +156,10 @@ return [
         |
         */
         'tools' => [
+            'overview' => [
+                'enabled' => true,
+                'include_recommendations' => true,
+            ],
             'requests' => [
                 'enabled' => true,
                 'include_headers' => false,

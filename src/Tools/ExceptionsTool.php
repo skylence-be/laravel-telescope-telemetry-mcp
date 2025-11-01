@@ -29,7 +29,7 @@ final class ExceptionsTool extends AbstractTool
                     ],
                     'period' => [
                         'type' => 'string',
-                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d', '14d', '21d', '30d'],
+                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d', '14d', '21d', '30d', '3M', '6M', '12M'],
                         'description' => 'Time period for analysis (overrides config default)',
                         'default' => '1h',
                     ],

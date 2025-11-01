@@ -244,6 +244,9 @@ abstract class AbstractTool implements ToolInterface
             '14d' => $now - (14 * 24 * 60 * 60),
             '21d' => $now - (21 * 24 * 60 * 60),
             '30d' => $now - (30 * 24 * 60 * 60),
+            '3M' => $now - (90 * 24 * 60 * 60),  // ~3 months
+            '6M' => $now - (180 * 24 * 60 * 60), // ~6 months
+            '12M' => $now - (365 * 24 * 60 * 60), // ~12 months
             default => $now - (60 * 60), // Default to 1 hour
         };
     }
@@ -366,12 +369,16 @@ abstract class AbstractTool implements ToolInterface
         if (is_object($entry)) {
             $content = isset($entry->content) && is_array($entry->content) ? $entry->content : [];
             $id = $entry->id ?? null;
-            $createdAt = $entry->created_at ?? null;
+            // Use createdAt (camelCase) - EntryResult uses camelCase properties
+            $createdAt = $entry->createdAt ?? null;
+
+            // Convert Carbon object to string if needed
+            $createdAtString = $createdAt ? (string) $createdAt : null;
 
             return [
                 'id' => $id,
                 'content' => $content,
-                'created_at' => $createdAt,
+                'created_at' => $createdAtString,
             ];
         }
 

@@ -27,6 +27,12 @@ final class ExceptionsTool extends AbstractTool
                         'description' => 'Action to perform',
                         'default' => 'list',
                     ],
+                    'period' => [
+                        'type' => 'string',
+                        'enum' => ['5m', '15m', '1h', '6h', '24h', '7d'],
+                        'description' => 'Time period for analysis (overrides config default)',
+                        'default' => '1h',
+                    ],
                     'limit' => [
                         'type' => 'integer',
                         'description' => 'Number of entries to return (max 25)',

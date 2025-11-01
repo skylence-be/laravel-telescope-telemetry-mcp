@@ -198,10 +198,43 @@ abstract class AbstractTool implements ToolInterface
             $queryOptions->beforeSequence($arguments['before']);
         }
 
-        return iterator_to_array($this->storage->get(
+        $entries = iterator_to_array($this->storage->get(
             $this->entryType,
             $queryOptions
         ));
+
+        // Filter by period if specified
+        if (isset($arguments['period'])) {
+            $cutoffTime = $this->getPeriodCutoffTime($arguments['period']);
+            $entries = array_filter($entries, function ($entry) use ($cutoffTime) {
+                $createdAt = $entry->created_at ?? null;
+                if (! $createdAt) {
+                    return false;
+                }
+
+                return strtotime($createdAt) >= $cutoffTime;
+            });
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Get cutoff timestamp for period filter.
+     */
+    protected function getPeriodCutoffTime(string $period): int
+    {
+        $now = time();
+
+        return match ($period) {
+            '5m' => $now - (5 * 60),
+            '15m' => $now - (15 * 60),
+            '1h' => $now - (60 * 60),
+            '6h' => $now - (6 * 60 * 60),
+            '24h' => $now - (24 * 60 * 60),
+            '7d' => $now - (7 * 24 * 60 * 60),
+            default => $now - (60 * 60), // Default to 1 hour
+        };
     }
 
     /**

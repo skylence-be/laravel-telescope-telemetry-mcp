@@ -105,7 +105,7 @@ final class OverviewTool extends AbstractTool
             $overview = [
                 'health_status' => $this->calculateHealthStatus($requestAnalysis, $queryAnalysis, $exceptions),
                 'performance_metrics' => $this->getPerformanceMetrics($requestAnalysis, $queryAnalysis),
-                'critical_issues' => $this->identifyCriticalIssues($requestAnalysis, $queryAnalysis, $exceptions, $bottlenecks),
+                'critical_issues' => $this->identifyCriticalIssues($requestAnalysis, $queryAnalysis, $exceptions, $bottlenecks, $queries),
                 'system_stats' => $this->getSystemStats($requests, $queries, $exceptions, $jobs, $cache),
                 'recent_errors' => $this->getRecentErrors($exceptions),
             ];
@@ -196,7 +196,8 @@ final class OverviewTool extends AbstractTool
         array $requestAnalysis,
         array $queryAnalysis,
         array $exceptions,
-        array $bottlenecks
+        array $bottlenecks,
+        array $queries
     ): array {
         $issues = [];
 
@@ -212,8 +213,8 @@ final class OverviewTool extends AbstractTool
             }
         }
 
-        // Check for N+1 queries
-        $nPlusOne = $this->queryAnalyzer->detectNPlusOne(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
+        // Check for N+1 queries using the already-fetched queries
+        $nPlusOne = $this->queryAnalyzer->detectNPlusOne($queries);
         if (! empty($nPlusOne)) {
             $issues[] = [
                 'type' => 'n_plus_one',

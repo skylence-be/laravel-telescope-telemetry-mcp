@@ -183,8 +183,13 @@ abstract class AbstractTool implements ToolInterface
      */
     protected function getEntries(array $arguments = []): array
     {
+        // Use high limit (10k) when period filtering is specified to get all entries in the period
+        // This is a reasonable max that won't cause memory issues
+        // Otherwise use the provided limit or default to 100
+        $fetchLimit = isset($arguments['period']) ? 10000 : ($arguments['limit'] ?? 100);
+
         $queryOptions = (new EntryQueryOptions())
-            ->limit($arguments['limit'] ?? 100);
+            ->limit($fetchLimit);
 
         if (isset($arguments['tag'])) {
             $queryOptions->tag($arguments['tag']);

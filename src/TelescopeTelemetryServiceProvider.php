@@ -10,7 +10,6 @@ use Skylence\TelescopeMcp\Http\Middleware\AuthenticateMcp;
 use Skylence\TelescopeMcp\Http\Middleware\OptimizeResponse;
 use Skylence\TelescopeMcp\MCP\TelescopeMcpServer;
 use Skylence\TelescopeMcp\Services\AggregationService;
-use Skylence\TelescopeMcp\Services\CacheManager;
 use Skylence\TelescopeMcp\Services\PaginationManager;
 use Skylence\TelescopeMcp\Services\PerformanceAnalyzer;
 use Skylence\TelescopeMcp\Services\QueryAnalyzer;
@@ -90,15 +89,6 @@ final class TelescopeTelemetryServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(CacheManager::class, function ($app) {
-            $cacheDriver = $app['config']->get('telescope-telemetry.mcp.cache.driver', 'redis');
-
-            return new CacheManager(
-                $app['config']->get('telescope-telemetry.mcp.cache'),
-                $app['cache']->driver($cacheDriver)
-            );
-        });
-
         $this->app->singleton(AggregationService::class, function ($app) {
             return new AggregationService(
                 $app['config']->get('telescope-telemetry.mcp.aggregation')
@@ -132,8 +122,7 @@ final class TelescopeTelemetryServiceProvider extends ServiceProvider
                 return new $className(
                     $config,
                     $app[PaginationManager::class],
-                    $app[ResponseFormatter::class],
-                    $app[CacheManager::class]
+                    $app[ResponseFormatter::class]
                 );
             });
 

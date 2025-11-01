@@ -6,7 +6,6 @@ namespace Skylence\TelescopeMcp\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use Skylence\TelescopeMcp\Services\CacheManager;
 use Skylence\TelescopeMcp\Services\PaginationManager;
 use Skylence\TelescopeMcp\Services\PerformanceAnalyzer;
 use Skylence\TelescopeMcp\Services\QueryAnalyzer;
@@ -21,10 +20,9 @@ final class OverviewTool extends AbstractTool
     public function __construct(
         array $config,
         PaginationManager $pagination,
-        ResponseFormatter $formatter,
-        CacheManager $cache
+        ResponseFormatter $formatter
     ) {
-        parent::__construct($config, $pagination, $formatter, $cache);
+        parent::__construct($config, $pagination, $formatter);
         $this->performanceAnalyzer = app(PerformanceAnalyzer::class);
         $this->queryAnalyzer = app(QueryAnalyzer::class);
     }

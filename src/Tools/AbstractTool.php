@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\App;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use Skylence\TelescopeMcp\Contracts\ToolInterface;
-use Skylence\TelescopeMcp\Services\CacheManager;
 use Skylence\TelescopeMcp\Services\PaginationManager;
 use Skylence\TelescopeMcp\Services\ResponseFormatter;
 
@@ -17,7 +16,6 @@ abstract class AbstractTool implements ToolInterface
     protected array $config;
     protected PaginationManager $pagination;
     protected ResponseFormatter $formatter;
-    protected CacheManager $cache;
     protected EntriesRepository $storage;
 
     /**
@@ -28,13 +26,11 @@ abstract class AbstractTool implements ToolInterface
     public function __construct(
         array $config,
         PaginationManager $pagination,
-        ResponseFormatter $formatter,
-        CacheManager $cache
+        ResponseFormatter $formatter
     ) {
         $this->config = $config;
         $this->pagination = $pagination;
         $this->formatter = $formatter;
-        $this->cache = $cache;
         $this->storage = App::make(EntriesRepository::class);
     }
 
@@ -320,20 +316,6 @@ abstract class AbstractTool implements ToolInterface
         return $values[$index] ?? 0;
     }
 
-    /**
-     * Get cache key for the operation.
-     */
-    protected function getCacheKey(string $operation, array $arguments): string
-    {
-        $key = sprintf(
-            'telescope_telemetry_%s_%s_%s',
-            $this->entryType,
-            $operation,
-            md5(json_encode($arguments))
-        );
-
-        return $key;
-    }
 
     /**
      * Get fields to include in list view.

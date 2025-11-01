@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Skylence\TelescopeMcp\Tools;
 
-use Skylence\TelescopeMcp\Services\CacheManager;
 use Skylence\TelescopeMcp\Services\PaginationManager;
 use Skylence\TelescopeMcp\Services\QueryAnalyzer;
 use Skylence\TelescopeMcp\Services\ResponseFormatter;
@@ -17,10 +16,9 @@ final class QueriesTool extends AbstractTool
     public function __construct(
         array $config,
         PaginationManager $pagination,
-        ResponseFormatter $formatter,
-        CacheManager $cache
+        ResponseFormatter $formatter
     ) {
-        parent::__construct($config, $pagination, $formatter, $cache);
+        parent::__construct($config, $pagination, $formatter);
         $this->queryAnalyzer = app(QueryAnalyzer::class);
     }
 

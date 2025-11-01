@@ -8,7 +8,7 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
-    public const VERSION = '1.2.0'; // Removed caching for real-time monitoring
+    public const VERSION = '1.3.0'; // Completely removed CacheManager and all caching
 
     /**
      * Registered tools.

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Skylence\TelescopeMcp\Tools;
 
-use Skylence\TelescopeMcp\Services\CacheManager;
 use Skylence\TelescopeMcp\Services\PaginationManager;
 use Skylence\TelescopeMcp\Services\ResponseFormatter;
 
@@ -36,11 +35,13 @@ final class VersionTool extends AbstractTool
             'version' => \Skylence\TelescopeMcp\MCP\TelescopeMcpServer::VERSION,
             'build_date' => date('Y-m-d H:i:s'),
             'changes' => [
-                'Added period filtering (5m, 15m, 1h, 6h, 24h, 7d, 14d, 21d, 30d, 3M, 6M, 12M)',
-                'Increased fetch limit to 10,000 when period is specified',
-                'Fixed OverviewTool to use period filtering',
-                'Fixed created_at timestamp display',
-                'Added VersionTool',
+                'v1.3.0: Completely removed CacheManager and all caching for real-time monitoring',
+                'v1.2.0: Removed cache configuration from config file',
+                'v1.1.0: Added period filtering (5m, 15m, 1h, 6h, 24h, 7d, 14d, 21d, 30d, 3M, 6M, 12M)',
+                'v1.1.0: Increased fetch limit to 10,000 when period is specified',
+                'v1.1.0: Fixed OverviewTool to use period filtering',
+                'v1.1.0: Fixed created_at timestamp display',
+                'v1.1.0: Added VersionTool',
             ],
         ], 'standard');
     }

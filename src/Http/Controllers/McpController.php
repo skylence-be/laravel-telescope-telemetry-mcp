@@ -220,7 +220,7 @@ final class McpController extends Controller
                 'description' => $manifest['description'],
             ],
             'capabilities' => [
-                'tools' => new \stdClass(),
+                'tools' => (object) $manifest['tools'],
             ],
         ];
     }

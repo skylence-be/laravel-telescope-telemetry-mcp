@@ -207,13 +207,21 @@ abstract class AbstractTool implements ToolInterface
         if (isset($arguments['period'])) {
             $cutoffTime = $this->getPeriodCutoffTime($arguments['period']);
             $entries = array_filter($entries, function ($entry) use ($cutoffTime) {
-                $createdAt = $entry->created_at ?? null;
+                // Check for createdAt property (camelCase, not created_at)
+                $createdAt = $entry->createdAt ?? null;
                 if (! $createdAt) {
                     return false;
                 }
 
-                return strtotime($createdAt) >= $cutoffTime;
+                // createdAt is a Carbon object, use timestamp() method
+                $entryTimestamp = method_exists($createdAt, 'timestamp')
+                    ? $createdAt->timestamp
+                    : strtotime((string) $createdAt);
+
+                return $entryTimestamp >= $cutoffTime;
             });
+            // Re-index array after filtering to avoid gaps in array keys
+            $entries = array_values($entries);
         }
 
         return $entries;

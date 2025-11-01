@@ -35,6 +35,7 @@ final class VersionTool extends AbstractTool
             'version' => \Skylence\TelescopeMcp\MCP\TelescopeMcpServer::VERSION,
             'build_date' => date('Y-m-d H:i:s'),
             'changes' => [
+                'v1.3.1: Fixed lazy loading of tools to resolve race condition with ServiceProvider',
                 'v1.3.0: Completely removed CacheManager and all caching for real-time monitoring',
                 'v1.2.0: Removed cache configuration from config file',
                 'v1.1.0: Added period filtering (5m, 15m, 1h, 6h, 24h, 7d, 14d, 21d, 30d, 3M, 6M, 12M)',

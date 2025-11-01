@@ -8,21 +8,21 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
-    public const VERSION = '1.3.0'; // Completely removed CacheManager and all caching
+    public const VERSION = '1.3.1'; // Fixed lazy loading of tools to resolve race condition
 
     /**
      * Registered tools.
      *
-     * @var array<string, AbstractTool>
+     * @var array<string, AbstractTool>|null
      */
-    private array $tools = [];
+    private ?array $tools = null;
 
     /**
      * Create a new TelescopeMcpServer instance.
      */
     public function __construct()
     {
-        $this->registerTools();
+        // Tools will be lazily loaded on first access
     }
 
     /**
@@ -30,6 +30,12 @@ final class TelescopeMcpServer
      */
     private function registerTools(): void
     {
+        if ($this->tools !== null) {
+            return;
+        }
+
+        $this->tools = [];
+
         $toolClasses = [
             \Skylence\TelescopeMcp\Tools\VersionTool::class,
             \Skylence\TelescopeMcp\Tools\OverviewTool::class,
@@ -87,6 +93,8 @@ final class TelescopeMcpServer
      */
     private function getToolsAsArray(): array
     {
+        $this->registerTools();
+
         $tools = [];
         foreach ($this->tools as $tool) {
             $schema = $tool->getSchema();
@@ -109,6 +117,8 @@ final class TelescopeMcpServer
      */
     private function getToolsAsObject(): array
     {
+        $this->registerTools();
+
         $tools = [];
         foreach ($this->tools as $tool) {
             $schema = $tool->getSchema();
@@ -201,6 +211,8 @@ final class TelescopeMcpServer
      */
     public function executeTool(string $toolName, array $params = []): array
     {
+        $this->registerTools();
+
         if (! isset($this->tools[$toolName])) {
             throw new \InvalidArgumentException("Tool '{$toolName}' not found");
         }
@@ -213,6 +225,8 @@ final class TelescopeMcpServer
      */
     public function hasTool(string $toolName): bool
     {
+        $this->registerTools();
+
         return isset($this->tools[$toolName]);
     }
 }

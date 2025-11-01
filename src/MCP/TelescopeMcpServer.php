@@ -8,6 +8,8 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
+    public const VERSION = '1.1.0';
+
     /**
      * Registered tools.
      *
@@ -29,6 +31,7 @@ final class TelescopeMcpServer
     private function registerTools(): void
     {
         $toolClasses = [
+            \Skylence\TelescopeMcp\Tools\VersionTool::class,
             \Skylence\TelescopeMcp\Tools\OverviewTool::class,
             \Skylence\TelescopeMcp\Tools\RequestsTool::class,
             \Skylence\TelescopeMcp\Tools\QueriesTool::class,
@@ -62,7 +65,7 @@ final class TelescopeMcpServer
     {
         return [
             'name' => 'telescope-mcp',
-            'version' => '1.0.0',
+            'version' => self::VERSION,
             'description' => 'Token-optimized Laravel Telescope MCP server for AI assistants',
             'tools' => $this->getToolsAsObject(),
             'resources' => $this->getResourcesAsObject(),

@@ -156,6 +156,9 @@ return [
         |
         */
         'tools' => [
+            'version' => [
+                'enabled' => true,
+            ],
             'overview' => [
                 'enabled' => true,
                 'include_recommendations' => true,

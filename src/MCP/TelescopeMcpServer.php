@@ -29,6 +29,7 @@ final class TelescopeMcpServer
     private function registerTools(): void
     {
         $toolClasses = [
+            \Skylence\TelescopeMcp\Tools\OverviewTool::class,
             \Skylence\TelescopeMcp\Tools\RequestsTool::class,
             \Skylence\TelescopeMcp\Tools\QueriesTool::class,
             \Skylence\TelescopeMcp\Tools\ExceptionsTool::class,

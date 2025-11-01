@@ -67,12 +67,34 @@ final class OverviewTool extends AbstractTool
             $period = $arguments['period'] ?? '1h';
             $includeRecommendations = $arguments['include_recommendations'] ?? true;
 
-            // Gather data from different entry types
-            $requests = $this->normalizeEntries(iterator_to_array($this->storage->get('request', (new EntryQueryOptions())->limit(100))));
-            $queries = $this->normalizeEntries(iterator_to_array($this->storage->get('query', (new EntryQueryOptions())->limit(100))));
-            $exceptions = $this->normalizeEntries(iterator_to_array($this->storage->get('exception', (new EntryQueryOptions())->limit(50))));
-            $jobs = $this->normalizeEntries(iterator_to_array($this->storage->get('job', (new EntryQueryOptions())->limit(50))));
-            $cache = $this->normalizeEntries(iterator_to_array($this->storage->get('cache', (new EntryQueryOptions())->limit(50))));
+            // Store original entry type and restore it after gathering data
+            $originalEntryType = $this->entryType;
+
+            // Gather data from different entry types using getEntries to apply period filtering
+            $this->entryType = 'request';
+            $requests = $this->getEntries($arguments);
+
+            $this->entryType = 'query';
+            $queries = $this->getEntries($arguments);
+
+            $this->entryType = 'exception';
+            $exceptions = $this->getEntries($arguments);
+
+            $this->entryType = 'job';
+            $jobs = $this->getEntries($arguments);
+
+            $this->entryType = 'cache';
+            $cache = $this->getEntries($arguments);
+
+            // Restore original entry type
+            $this->entryType = $originalEntryType;
+
+            // Normalize all entries
+            $requests = $this->normalizeEntries($requests);
+            $queries = $this->normalizeEntries($queries);
+            $exceptions = $this->normalizeEntries($exceptions);
+            $jobs = $this->normalizeEntries($jobs);
+            $cache = $this->normalizeEntries($cache);
 
             // Analyze performance
             $requestAnalysis = $this->performanceAnalyzer->analyzeRequests($requests);

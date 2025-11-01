@@ -220,7 +220,9 @@ final class McpController extends Controller
                 'description' => $manifest['description'],
             ],
             'capabilities' => [
-                'tools' => (object) $manifest['tools'],
+                'tools' => [
+                    'listChanged' => true,
+                ],
             ],
         ];
     }

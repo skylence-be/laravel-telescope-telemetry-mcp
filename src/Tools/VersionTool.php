@@ -35,6 +35,9 @@ final class VersionTool extends AbstractTool
             'version' => \Skylence\TelescopeMcp\MCP\TelescopeMcpServer::VERSION,
             'build_date' => date('Y-m-d H:i:s'),
             'changes' => [
+                'v1.3.3: Fixed capabilities response to return empty object per MCP protocol spec',
+                'v1.3.2: Fixed authentication to use config() instead of env() for config caching compatibility',
+                'v1.3.2: Changed insecure default (allow any token) to secure default (deny all) when token not set',
                 'v1.3.1: Fixed lazy loading of tools to resolve race condition with ServiceProvider',
                 'v1.3.0: Completely removed CacheManager and all caching for real-time monitoring',
                 'v1.2.0: Removed cache configuration from config file',

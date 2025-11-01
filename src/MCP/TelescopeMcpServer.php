@@ -8,7 +8,7 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
-    public const VERSION = '1.3.2'; // Fixed authentication to work with config caching
+    public const VERSION = '1.3.3'; // Fixed capabilities response to follow MCP protocol spec
 
     /**
      * Registered tools.

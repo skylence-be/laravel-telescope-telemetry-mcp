@@ -114,7 +114,7 @@ final class OverviewTool extends AbstractTool
             );
         }
 
-        return $this->formatter->format($overview, 'summary');
+        return $this->formatter->format($overview, 'standard');
     }
 
     /**

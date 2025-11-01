@@ -16,7 +16,7 @@ final class ExceptionsTool extends AbstractTool
     public function getSchema(): array
     {
         return [
-            'name' => $this->getName(),
+            'name' => $this->getShortName(),
             'description' => 'Analyze application exceptions with stack traces and occurrence patterns',
             'inputSchema' => [
                 'type' => 'object',

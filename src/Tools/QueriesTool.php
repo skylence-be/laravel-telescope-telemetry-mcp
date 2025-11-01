@@ -30,7 +30,7 @@ final class QueriesTool extends AbstractTool
     public function getSchema(): array
     {
         return [
-            'name' => $this->getName(),
+            'name' => $this->getShortName(),
             'description' => 'Analyze database queries with N+1 detection, duplicate finding, and performance insights',
             'inputSchema' => [
                 'type' => 'object',

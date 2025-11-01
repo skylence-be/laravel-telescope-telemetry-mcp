@@ -19,7 +19,7 @@ final class VersionTool extends AbstractTool
     public function getSchema(): array
     {
         return [
-            'name' => $this->getName(),
+            'name' => $this->getShortName(),
             'description' => 'Get the MCP server version and build information',
             'inputSchema' => [
                 'type' => 'object',
@@ -35,6 +35,9 @@ final class VersionTool extends AbstractTool
             'version' => \Skylence\TelescopeMcp\MCP\TelescopeMcpServer::VERSION,
             'build_date' => date('Y-m-d H:i:s'),
             'changes' => [
+                'v1.3.6: Use short names in capabilities like simple-mcp',
+                'v1.3.5: Return tools directly in capabilities for Claude Code compatibility',
+                'v1.3.4: Changed capabilities.tools to empty object for Claude Code compatibility',
                 'v1.3.3: Fixed capabilities response to return empty object per MCP protocol spec',
                 'v1.3.2: Fixed authentication to use config() instead of env() for config caching compatibility',
                 'v1.3.2: Changed insecure default (allow any token) to secure default (deny all) when token not set',

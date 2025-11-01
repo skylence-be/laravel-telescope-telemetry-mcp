@@ -8,7 +8,7 @@ use Skylence\TelescopeMcp\Tools\AbstractTool;
 
 final class TelescopeMcpServer
 {
-    public const VERSION = '1.3.3'; // Fixed capabilities response to follow MCP protocol spec
+    public const VERSION = '1.3.6'; // Use short names in capabilities like simple-mcp
 
     /**
      * Registered tools.

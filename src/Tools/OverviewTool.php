@@ -35,7 +35,7 @@ final class OverviewTool extends AbstractTool
     public function getSchema(): array
     {
         return [
-            'name' => $this->getName(),
+            'name' => $this->getShortName(),
             'description' => 'Get a comprehensive system overview with health status, performance metrics, and critical issues in under 2K tokens',
             'inputSchema' => [
                 'type' => 'object',

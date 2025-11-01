@@ -16,7 +16,7 @@ final class RequestsTool extends AbstractTool
     public function getSchema(): array
     {
         return [
-            'name' => $this->getName(),
+            'name' => $this->getShortName(),
             'description' => 'Analyze HTTP requests handled by your application with token-optimized responses',
             'inputSchema' => [
                 'type' => 'object',
